@@ -56,21 +56,73 @@ def load_experiment_results(results_path: Path) -> dict:
         return json.load(f)
 
 
+def _describe_log(log_path: Path) -> str:
+    """Generate a human-readable label for a simulation log."""
+    # Try metadata file first (new format)
+    meta_path = log_path.parent / log_path.name.replace(".jsonl", "_meta.json")
+    if meta_path.exists():
+        try:
+            with open(meta_path) as f:
+                meta = json.load(f)
+            org = meta.get("org_name", "Unknown")
+            adoption = meta.get("final_adoption", 0)
+            weeks = meta.get("weeks_elapsed", 0)
+            outcome = meta.get("outcome", "unknown")
+            label = "Success" if outcome == "success" else "Failed" if "failure" in outcome else outcome
+            return f"{org} | {adoption:.0%} in {weeks}wks | {label} ({log_path.stem[-7:]})"
+        except Exception:
+            pass
+
+    # Fallback: scan log content
+    try:
+        with open(log_path) as f:
+            first_line = f.readline()
+            last_line = first_line
+            for line in f:
+                if line.strip():
+                    last_line = line
+        last = json.loads(last_line)
+        weeks = last["week"]
+        adoption = last["adoption_metrics"]["overall_adoption_pct"]
+
+        # Scan full text for profile hints
+        with open(log_path) as f:
+            all_text = f.read().lower()
+        if "demo" in log_path.stem:
+            profile = "Demo Data"
+        elif any(kw in all_text for kw in ["nova", "analytics copilot", "product team"]):
+            profile = "Nova Tech"
+        elif any(kw in all_text for kw in ["acme", "regulatory", "sox", "compliance automation"]):
+            profile = "Acme Financial"
+        elif any(kw in all_text for kw in ["meridian", "clinical", "hipaa", "ehr", "documentation summarization"]):
+            profile = "Meridian Healthcare"
+        else:
+            profile = "Simulation"
+
+        outcome = "Success" if adoption >= 0.60 else "Failed"
+        return f"{profile} | {adoption:.0%} in {weeks}wks | {outcome} ({log_path.stem[-7:]})"
+    except Exception:
+        return log_path.stem
+
+
 def find_simulation_logs() -> dict[str, Path]:
-    """Find all simulation log files."""
+    """Find all simulation log files with descriptive labels."""
     logs = {}
     if SIM_LOG_DIR.exists():
         for f in sorted(SIM_LOG_DIR.glob("sim_*.jsonl"), reverse=True):
-            logs[f.stem] = f
+            label = _describe_log(f)
+            logs[label] = f
     return logs
 
 
 def find_audit_trails() -> dict[str, Path]:
-    """Find all audit trail files."""
+    """Find all audit trail files with descriptive labels."""
     trails = {}
     if SIM_LOG_DIR.exists():
         for f in sorted(SIM_LOG_DIR.glob("sim_*_audit.json"), reverse=True):
-            trails[f.stem.replace("_audit", "")] = f
+            log_path = f.parent / f.name.replace("_audit.json", ".jsonl")
+            label = _describe_log(log_path) if log_path.exists() else f.stem.replace("_audit", "")
+            trails[label] = f
     return trails
 
 

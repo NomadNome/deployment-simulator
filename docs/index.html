@@ -70,6 +70,7 @@
     <div class="tab" data-tab="failure">Failure Run</div>
     <div class="tab" data-tab="comparison">KB Comparison</div>
     <div class="tab" data-tab="audit">HITL Audit</div>
+    <div class="tab" data-tab="dashboard">Dashboard</div>
   </div>
 
   <!-- OVERVIEW -->
@@ -159,6 +160,43 @@ Simulation Controller (turn management, events, state, termination)
     <h3>Routing Log</h3>
     <table id="audit-table"><tr><th>Week</th><th>Intervention</th><th>Target</th><th>Confidence</th><th>Lane</th></tr></table>
   </div>
+
+  <!-- DASHBOARD SCREENSHOTS -->
+  <div class="tab-content" id="tab-dashboard">
+    <h2>Streamlit Dashboard</h2>
+    <p style="color:var(--dim);margin-bottom:16px;">The simulator ships with an interactive Streamlit dashboard (<code>python -m src.main dashboard</code>) for exploring simulation results locally. Below are screenshots from actual runs.</p>
+
+    <h3>Adoption Curves: Success vs Failure</h3>
+    <p style="color:var(--dim);margin-bottom:8px;">Left: Nova Tech reaches 73% adoption in 13 weeks with a steady climb. Right: Meridian Healthcare grinds flat for 20 weeks under hostile conditions — weak sponsor, low maturity, sponsor departure at week 3, budget freeze at week 6 — and falls 0.4% short of the 60% target.</p>
+    <img src="screenshot_adoption_curves.png" alt="Success vs Failure adoption curves" style="width:100%;border-radius:8px;border:1px solid var(--border);margin:12px 0;" />
+
+    <h3>Knowledge Base Disruption Comparison</h3>
+    <p style="color:var(--dim);margin-bottom:8px;">Same scenario (competing tool week 5, sponsor departure week 10), two knowledge bases. The field-tested KB (green) reaches the 70% target one week faster with four fewer interventions than the generic KB (gray). The red dotted lines mark when disruptions hit.</p>
+    <img src="screenshot_kb_comparison.png" alt="KB comparison under disruption" style="width:100%;border-radius:8px;border:1px solid var(--border);margin:12px 0;" />
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:20px;">
+      <h3 style="margin-top:0;">Run It Yourself</h3>
+      <pre style="background:var(--bg);padding:12px;border-radius:6px;font-size:0.85em;overflow-x:auto;">git clone https://github.com/NomadNome/deployment-simulator.git
+cd deployment-simulator
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
+echo "ANTHROPIC_API_KEY=sk-ant-your-key" > .env
+
+# Run a simulation
+python3 -m src.main simulate --profile nova_tech --seed 42
+
+# Launch the dashboard
+python3 -m src.main dashboard
+
+# Interactive demo mode (approve/reject each intervention)
+python3 -m src.main simulate --profile nova_tech --seed 42 --mode demo</pre>
+    </div>
+  </div>
+
+  <!-- AUTHOR FOOTER -->
+  <footer style="margin-top:60px;padding:24px 0;border-top:1px solid var(--border);color:var(--dim);font-size:0.9em;">
+    <p>Built by <a href="https://www.linkedin.com/in/yourlinkedin" target="_blank"><strong style="color:var(--text);">Chris Jenkins</strong></a>, Senior Engagement Manager at AWS, drawing on 20 Fortune 500 AI adoption programs. Currently exploring deployment strategy roles at AI-native companies.</p>
+  </footer>
 </div>
 
 <script>
