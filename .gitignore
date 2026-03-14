@@ -1,0 +1,24 @@
+# Environment
+.env
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Data (generated, not committed)
+data/simulation_logs/
+data/experiments/
+
+# IDE
+.vscode/
+.idea/
+
+# PRD (reference only, not committed)
+*.docx
+
+# OS
+.DS_Store
+
+# Tar archive (original scaffold)
+deployment-simulator.tar.gz
+deployment-simulator/
