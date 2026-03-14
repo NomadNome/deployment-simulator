@@ -323,15 +323,45 @@ class SimulationController:
         self._print(table)
 
     def _save_log(self) -> None:
-        """Save simulation log and HITL audit trail."""
-        log_path = self.log_dir / f"sim_{self.state.simulation_id}.jsonl"
+        """Save simulation log, metadata, and HITL audit trail."""
+        sim_id = self.state.simulation_id
+        log_path = self.log_dir / f"sim_{sim_id}.jsonl"
         with open(log_path, "w") as f:
             for turn in self.state.turn_history:
                 f.write(turn.model_dump_json() + "\n")
         self._print(f"\n[dim]Log saved: {log_path}[/dim]")
 
+        # Save metadata for dashboard labeling
+        meta_path = self.log_dir / f"sim_{sim_id}_meta.json"
+        meta = {
+            "org_name": self.org_profile.org_name,
+            "industry": self.org_profile.industry.value,
+            "maturity": self.org_profile.technical_maturity.value,
+            "sponsorship": self.org_profile.executive_sponsorship.value,
+            "team_size": self.org_profile.team_size,
+            "budget_weeks": self.org_profile.budget_weeks,
+            "target": self.org_profile.success_threshold,
+            "outcome": self.state.outcome.value,
+            "final_adoption": self.state.metrics.overall_adoption_pct if self.state.metrics else 0.0,
+            "weeks_elapsed": self.state.current_week,
+            "total_interventions": sum(len(t.interventions) for t in self.state.turn_history),
+            "events_encountered": sum(len(t.events_fired) for t in self.state.turn_history),
+            "persona_final_states": {
+                ptype.value: {
+                    "sentiment": round(pstate.sentiment_score, 3),
+                    "adoption": round(pstate.adoption_likelihood, 3),
+                    "trust": round(pstate.trust_level, 3),
+                    "cognitive_load": round(pstate.cognitive_load, 3),
+                    "interventions_received": len(pstate.intervention_history),
+                }
+                for ptype, pstate in self.state.persona_states.items()
+            },
+        }
+        with open(meta_path, "w") as f:
+            json.dump(meta, f, indent=2)
+
         # Save HITL audit trail
         if self.router.audit_trail:
-            audit_path = self.log_dir / f"sim_{self.state.simulation_id}_audit.json"
+            audit_path = self.log_dir / f"sim_{sim_id}_audit.json"
             self.router.save_audit_trail(str(audit_path))
             self._print(f"[dim]Audit trail saved: {audit_path}[/dim]")

@@ -227,16 +227,18 @@ function renderRun(dataKey, prefix) {
   const personaOrder = ['skeptical_ic', 'enthusiastic_champion', 'risk_averse_vp', 'overwhelmed_it_admin'];
   const icons = { skeptical_ic: '&#x1F534;', enthusiastic_champion: '&#x1F7E2;', risk_averse_vp: '&#x1F7E1;', overwhelmed_it_admin: '&#x1F7E0;' };
   const ptable = document.getElementById(`${prefix}-persona-table`);
-  // Get final persona states from last turn's responses and intervention counts
-  const ivCounts = {};
-  turns.forEach(t => t.interventions.forEach(iv => {
-    ivCounts[iv.target_persona] = (ivCounts[iv.target_persona] || 0) + 1;
-  }));
-  // We don't have direct persona state in turns, show intervention counts
+  const pStates = run.persona_final_states || {};
   personaOrder.forEach(p => {
     const name = p.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const ps = pStates[p];
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${icons[p] || ''} ${name}</td><td>-</td><td>-</td><td>-</td><td>${ivCounts[p] || 0}</td>`;
+    if (ps) {
+      const sColor = ps.sentiment > 0.6 ? 'green' : ps.sentiment > 0.35 ? 'yellow' : 'red';
+      const aColor = ps.adoption > 0.6 ? 'green' : ps.adoption > 0.35 ? 'yellow' : 'red';
+      tr.innerHTML = `<td>${icons[p] || ''} ${name}</td><td style="color:var(--${sColor})">${ps.sentiment.toFixed(2)}</td><td style="color:var(--${aColor})">${ps.adoption.toFixed(2)}</td><td>${ps.trust.toFixed(2)}</td><td>${ps.interventions_received}</td>`;
+    } else {
+      tr.innerHTML = `<td>${icons[p] || ''} ${name}</td><td>-</td><td>-</td><td>-</td><td>-</td>`;
+    }
     ptable.appendChild(tr);
   });
 
