@@ -165,26 +165,39 @@ Simulation Controller (turn management, events, state, termination)
 let DATA = {};
 
 async function init() {
-  const resp = await fetch('simulation_data.json');
-  DATA = await resp.json();
-  renderOverview();
-  renderRun('success', 'success');
-  renderRun('failure', 'failure');
-  renderComparison();
-  renderAudit();
+  try {
+    const resp = await fetch('simulation_data.json');
+    DATA = await resp.json();
+    console.log('Data loaded:', Object.keys(DATA));
+  } catch (e) {
+    console.error('Failed to load data:', e);
+    return;
+  }
+  try { renderOverview(); } catch(e) { console.error('renderOverview:', e); }
+  try { renderRun('success', 'success'); } catch(e) { console.error('renderRun success:', e); }
+  try { renderRun('failure', 'failure'); } catch(e) { console.error('renderRun failure:', e); }
+  try { renderComparison(); } catch(e) { console.error('renderComparison:', e); }
+  try { renderAudit(); } catch(e) { console.error('renderAudit:', e); }
+}
+
+function setEl(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
 }
 
 function renderOverview() {
-  const runs = {
-    success: DATA.success, failure: DATA.failure, disrupt: DATA.disruption_new_kb
-  };
-  for (const [key, run] of Object.entries(runs)) {
-    if (!run) continue;
+  const mapping = [
+    ['success', DATA.success],
+    ['failure', DATA.failure],
+    ['disrupt', DATA.disruption_new_kb],
+  ];
+  for (const [key, run] of mapping) {
+    if (!run || !run.meta) continue;
     const m = run.meta;
-    const el = (id) => document.getElementById(id);
-    el(`ov-${key}-adopt`).textContent = `${(m.final_adoption * 100).toFixed(0)}%`;
-    el(`ov-${key}-weeks`).textContent = `${m.weeks_elapsed} weeks`;
-    el(`ov-${key}-ivs`).textContent = run.turns.reduce((s, t) => s + t.interventions.length, 0);
+    const ivCount = run.turns ? run.turns.reduce((s, t) => s + (t.interventions ? t.interventions.length : 0), 0) : 0;
+    setEl(`ov-${key}-adopt`, `${(m.final_adoption * 100).toFixed(0)}%`);
+    setEl(`ov-${key}-weeks`, `${m.weeks_elapsed} weeks`);
+    setEl(`ov-${key}-ivs`, String(ivCount));
   }
 }
 
@@ -245,10 +258,12 @@ function renderRun(dataKey, prefix) {
   // Week selector + responses
   const weekSel = document.getElementById(`${prefix}-weeks`);
   const respDiv = document.getElementById(`${prefix}-responses`);
-  turns.forEach((t, i) => {
+  if (!weekSel || !respDiv) return;
+  let firstBtn = null;
+  turns.forEach((t) => {
     if (!t.persona_responses || Object.keys(t.persona_responses).length === 0) return;
     const btn = document.createElement('div');
-    btn.className = 'week-btn' + (i === 0 ? ' active' : '');
+    btn.className = 'week-btn';
     btn.textContent = `Week ${t.week}`;
     btn.onclick = () => {
       weekSel.querySelectorAll('.week-btn').forEach(b => b.classList.remove('active'));
@@ -256,10 +271,14 @@ function renderRun(dataKey, prefix) {
       showResponses(prefix, t);
     };
     weekSel.appendChild(btn);
+    if (!firstBtn) firstBtn = btn;
   });
-  // Show first week
-  const firstWithResponses = turns.find(t => t.persona_responses && Object.keys(t.persona_responses).length > 0);
-  if (firstWithResponses) showResponses(prefix, firstWithResponses);
+  // Show first week with responses
+  if (firstBtn) {
+    firstBtn.classList.add('active');
+    const firstWithResponses = turns.find(t => t.persona_responses && Object.keys(t.persona_responses).length > 0);
+    if (firstWithResponses) showResponses(prefix, firstWithResponses);
+  }
 }
 
 function showResponses(prefix, turn) {
@@ -283,8 +302,8 @@ function renderComparison() {
   const oldIvs = oldKB.turns.reduce((s, t) => s + t.interventions.length, 0);
   const newIvs = newKB.turns.reduce((s, t) => s + t.interventions.length, 0);
 
-  document.getElementById('comp-headline').textContent = `${oldWeeks - newWeeks} week faster. ${oldIvs - newIvs} fewer interventions.`;
-  document.getElementById('comp-narrative').textContent = `Under disruption conditions, the orchestrator with field-tested tactics reached the same adoption target with fewer moves. Domain expertise reduces waste, not just adds options.`;
+  setEl('comp-headline', `${oldWeeks - newWeeks} week faster. ${oldIvs - newIvs} fewer interventions.`);
+  setEl('comp-narrative', `Under disruption conditions, the orchestrator with field-tested tactics reached the same adoption target with fewer moves. Domain expertise reduces waste, not just adds options.`);
 
   const table = document.getElementById('comp-table');
   const rows = [
