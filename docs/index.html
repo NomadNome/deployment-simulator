@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enterprise AI Deployment Simulator — Agent Explorer</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --dim: #8b949e; --green: #3fb950;
+    --red: #f85149; --yellow: #d29922; --blue: #58a6ff;
+    --purple: #bc8cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+  h1 { font-size: 1.8em; margin-bottom: 4px; }
+  h2 { font-size: 1.3em; margin: 30px 0 12px; color: var(--blue); }
+  h3 { font-size: 1.1em; margin: 20px 0 8px; }
+  .subtitle { color: var(--dim); font-size: 0.95em; margin-bottom: 24px; }
+  .quote { border-left: 3px solid var(--blue); padding: 12px 16px; margin: 16px 0; color: var(--dim); font-style: italic; background: var(--surface); border-radius: 0 6px 6px 0; }
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+  .tab { padding: 10px 20px; cursor: pointer; color: var(--dim); border-bottom: 2px solid transparent; transition: all 0.2s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 16px 0; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: center; }
+  .kpi-value { font-size: 1.8em; font-weight: 700; }
+  .kpi-label { color: var(--dim); font-size: 0.85em; }
+  .kpi-value.green { color: var(--green); }
+  .kpi-value.red { color: var(--red); }
+  .kpi-value.yellow { color: var(--yellow); }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--dim); font-size: 0.85em; text-transform: uppercase; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 600; }
+  .badge-green { background: rgba(63,185,80,0.15); color: var(--green); }
+  .badge-red { background: rgba(248,81,73,0.15); color: var(--red); }
+  .badge-yellow { background: rgba(210,153,34,0.15); color: var(--yellow); }
+  .response-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin: 8px 0; }
+  .response-card h4 { margin-bottom: 8px; }
+  .persona-icon { margin-right: 6px; }
+  .week-selector { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
+  .week-btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--dim); cursor: pointer; font-size: 0.85em; }
+  .week-btn:hover, .week-btn.active { border-color: var(--blue); color: var(--blue); }
+  .chart { margin: 16px 0; border-radius: 8px; overflow: hidden; }
+  .comparison-table { margin: 20px 0; }
+  .comparison-table td.better { color: var(--green); font-weight: 600; }
+  .headline-box { background: linear-gradient(135deg, rgba(88,166,255,0.1), rgba(188,140,255,0.1)); border: 1px solid var(--blue); border-radius: 8px; padding: 20px; margin: 20px 0; }
+  .headline-box .number { font-size: 2em; font-weight: 700; color: var(--green); }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .github-link { position: fixed; top: 16px; right: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 16px; font-size: 0.85em; }
+</style>
+</head>
+<body>
+
+<a class="github-link" href="https://github.com/NomadNome/deployment-simulator">View on GitHub</a>
+
+<div class="container">
+  <h1>Enterprise AI Deployment Simulator</h1>
+  <p class="subtitle">Multi-agent orchestration system simulating enterprise AI rollouts. Orchestrator (Claude Sonnet) plans deployments against 4 persona agents (Claude Haiku) modeling realistic stakeholder behavior.</p>
+
+  <div class="tabs" id="mainTabs">
+    <div class="tab active" data-tab="overview">Overview</div>
+    <div class="tab" data-tab="success">Success Run</div>
+    <div class="tab" data-tab="failure">Failure Run</div>
+    <div class="tab" data-tab="comparison">KB Comparison</div>
+    <div class="tab" data-tab="audit">HITL Audit</div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div class="tab-content active" id="tab-overview">
+    <div class="quote">"The hardest problem in enterprise AI isn't the model. It's the adoption."</div>
+
+    <div class="headline-box">
+      <div class="number">1 week faster. 4 fewer interventions.</div>
+      <p style="margin-top:8px;">Under disruption conditions (competing tool + sponsor departure), the orchestrator with 26 field-tested tactics hit the adoption target with fewer moves. It didn't just know more — it wasted less. That's what domain expertise does: it's not about having more options, it's about knowing which options to skip.</p>
+    </div>
+
+    <h2>Three Demo Scenarios</h2>
+    <table>
+      <tr><th>Scenario</th><th>Profile</th><th>Outcome</th><th>Adoption</th><th>Duration</th><th>Interventions</th></tr>
+      <tr><td>Success</td><td>Nova Tech (moderate sponsor, medium maturity)</td><td><span class="badge badge-green">SUCCESS</span></td><td id="ov-success-adopt"></td><td id="ov-success-weeks"></td><td id="ov-success-ivs"></td></tr>
+      <tr><td>Failure</td><td>Meridian Healthcare (weak sponsor, low maturity, hostile)</td><td><span class="badge badge-red">FAILED</span></td><td id="ov-failure-adopt"></td><td id="ov-failure-weeks"></td><td id="ov-failure-ivs"></td></tr>
+      <tr><td>Disruption (Field-tested KB)</td><td>Nova Tech + competing tool wk5 + sponsor departure wk10</td><td><span class="badge badge-green">SUCCESS</span></td><td id="ov-disrupt-adopt"></td><td id="ov-disrupt-weeks"></td><td id="ov-disrupt-ivs"></td></tr>
+    </table>
+
+    <h2>Architecture</h2>
+    <pre style="background:var(--surface);padding:16px;border-radius:8px;overflow-x:auto;font-size:0.85em;">
+Simulation Controller (turn management, events, state, termination)
+  |
+  +-- HITL Router (confidence routing, audit trail)
+  +-- Flywheel Metrics (Pilot Scorecard, CS-grade KPIs)
+  |
+  +-- Orchestrator Agent (Claude Sonnet + 3 tools)
+  |     +-- RAG Knowledge Base (44 tactics: ADKAR + Kotter + field-tested)
+  |     +-- Adoption Metrics Tracker
+  |     +-- Re-planner Tool
+  |
+  +-- Persona Agents (Claude Haiku x4)
+        +-- Skeptical IC (needs evidence, high technical bar)
+        +-- Enthusiastic Champion (early adopter, burnout risk)
+        +-- Risk-Averse VP (ROI-focused, controls budget)
+        +-- Overwhelmed IT Admin (ticket-buried, silent bottleneck)
+    </pre>
+  </div>
+
+  <!-- SUCCESS RUN -->
+  <div class="tab-content" id="tab-success">
+    <h2>Nova Technologies — Success</h2>
+    <div class="kpi-row" id="success-kpis"></div>
+    <div class="chart" id="success-adoption-chart"></div>
+    <h3>Final Persona States</h3>
+    <table id="success-persona-table"><tr><th>Persona</th><th>Sentiment</th><th>Adoption</th><th>Trust</th><th>Interventions</th></tr></table>
+    <h3>Persona Responses</h3>
+    <div class="week-selector" id="success-weeks"></div>
+    <div id="success-responses"></div>
+  </div>
+
+  <!-- FAILURE RUN -->
+  <div class="tab-content" id="tab-failure">
+    <h2>Meridian Health Systems — Failure</h2>
+    <p style="color:var(--dim);margin-bottom:12px;">Hostile environment: weak sponsor, low maturity, VP at 0.8 cognitive load, sponsor departure week 3, budget freeze week 6, capped at 2 interventions/week.</p>
+    <div class="kpi-row" id="failure-kpis"></div>
+    <div class="chart" id="failure-adoption-chart"></div>
+    <h3>Final Persona States</h3>
+    <table id="failure-persona-table"><tr><th>Persona</th><th>Sentiment</th><th>Adoption</th><th>Trust</th><th>Interventions</th></tr></table>
+    <h3>Persona Responses</h3>
+    <div class="week-selector" id="failure-weeks"></div>
+    <div id="failure-responses"></div>
+  </div>
+
+  <!-- KB COMPARISON -->
+  <div class="tab-content" id="tab-comparison">
+    <h2>Knowledge Base Disruption Comparison</h2>
+    <p style="color:var(--dim);margin-bottom:12px;">Same scenario: Nova Tech with competing tool demo (week 5) + sponsor departure (week 10). Two runs: generic KB (18 ADKAR/Kotter tactics) vs field-tested KB (44 tactics with 1.3x relevance boost).</p>
+
+    <div class="headline-box">
+      <div class="number" id="comp-headline"></div>
+      <p style="margin-top:8px;" id="comp-narrative"></p>
+    </div>
+
+    <table class="comparison-table" id="comp-table">
+      <tr><th></th><th>Generic KB (18 tactics)</th><th>Field-tested KB (44 tactics)</th></tr>
+    </table>
+
+    <div class="chart" id="comp-adoption-chart"></div>
+  </div>
+
+  <!-- HITL AUDIT -->
+  <div class="tab-content" id="tab-audit">
+    <h2>HITL Audit Trail — Success Run</h2>
+    <div class="kpi-row" id="audit-kpis"></div>
+    <div class="chart" id="audit-confidence-chart"></div>
+    <h3>Routing Log</h3>
+    <table id="audit-table"><tr><th>Week</th><th>Intervention</th><th>Target</th><th>Confidence</th><th>Lane</th></tr></table>
+  </div>
+</div>
+
+<script>
+let DATA = {};
+
+async function init() {
+  const resp = await fetch('simulation_data.json');
+  DATA = await resp.json();
+  renderOverview();
+  renderRun('success', 'success');
+  renderRun('failure', 'failure');
+  renderComparison();
+  renderAudit();
+}
+
+function renderOverview() {
+  const runs = {
+    success: DATA.success, failure: DATA.failure, disrupt: DATA.disruption_new_kb
+  };
+  for (const [key, run] of Object.entries(runs)) {
+    if (!run) continue;
+    const m = run.meta;
+    const el = (id) => document.getElementById(id);
+    el(`ov-${key}-adopt`).textContent = `${(m.final_adoption * 100).toFixed(0)}%`;
+    el(`ov-${key}-weeks`).textContent = `${m.weeks_elapsed} weeks`;
+    el(`ov-${key}-ivs`).textContent = run.turns.reduce((s, t) => s + t.interventions.length, 0);
+  }
+}
+
+function renderRun(dataKey, prefix) {
+  const run = DATA[dataKey];
+  if (!run) return;
+  const m = run.meta;
+  const turns = run.turns;
+  const last = turns[turns.length - 1];
+  const lm = last.adoption_metrics;
+
+  // KPIs
+  const kpis = document.getElementById(`${prefix}-kpis`);
+  const adoptClass = lm.overall_adoption_pct >= 0.6 ? 'green' : lm.overall_adoption_pct >= 0.35 ? 'yellow' : 'red';
+  kpis.innerHTML = `
+    <div class="kpi"><div class="kpi-value ${adoptClass}">${(lm.overall_adoption_pct * 100).toFixed(0)}%</div><div class="kpi-label">Final Adoption</div></div>
+    <div class="kpi"><div class="kpi-value">${m.weeks_elapsed}</div><div class="kpi-label">Weeks</div></div>
+    <div class="kpi"><div class="kpi-value">${turns.reduce((s, t) => s + t.interventions.length, 0)}</div><div class="kpi-label">Interventions</div></div>
+    <div class="kpi"><div class="kpi-value">${turns.reduce((s, t) => s + t.events_fired.length, 0)}</div><div class="kpi-label">Events</div></div>
+    <div class="kpi"><div class="kpi-value">${(lm.nps_proxy >= 0 ? '+' : '') + lm.nps_proxy.toFixed(2)}</div><div class="kpi-label">NPS Proxy</div></div>
+  `;
+
+  // Adoption chart
+  const weeks = turns.map(t => t.week);
+  const adoption = turns.map(t => t.adoption_metrics.overall_adoption_pct);
+  const login = turns.map(t => t.adoption_metrics.login_rate);
+  Plotly.newPlot(`${prefix}-adoption-chart`, [
+    { x: weeks, y: adoption, mode: 'lines+markers', name: 'Adoption', line: { color: '#3fb950', width: 3 } },
+    { x: weeks, y: login, mode: 'lines', name: 'Login Rate', line: { color: '#58a6ff', dash: 'dot' } },
+  ], {
+    paper_bgcolor: '#161b22', plot_bgcolor: '#161b22',
+    font: { color: '#8b949e' },
+    yaxis: { tickformat: '.0%', range: [0, 1], gridcolor: '#30363d' },
+    xaxis: { title: 'Week', gridcolor: '#30363d' },
+    margin: { l: 50, r: 20, t: 20, b: 40 },
+    legend: { x: 0, y: 1.1, orientation: 'h' },
+  }, { responsive: true });
+
+  // Persona table
+  const personaOrder = ['skeptical_ic', 'enthusiastic_champion', 'risk_averse_vp', 'overwhelmed_it_admin'];
+  const icons = { skeptical_ic: '&#x1F534;', enthusiastic_champion: '&#x1F7E2;', risk_averse_vp: '&#x1F7E1;', overwhelmed_it_admin: '&#x1F7E0;' };
+  const ptable = document.getElementById(`${prefix}-persona-table`);
+  // Get final persona states from last turn's responses and intervention counts
+  const ivCounts = {};
+  turns.forEach(t => t.interventions.forEach(iv => {
+    ivCounts[iv.target_persona] = (ivCounts[iv.target_persona] || 0) + 1;
+  }));
+  // We don't have direct persona state in turns, show intervention counts
+  personaOrder.forEach(p => {
+    const name = p.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${icons[p] || ''} ${name}</td><td>-</td><td>-</td><td>-</td><td>${ivCounts[p] || 0}</td>`;
+    ptable.appendChild(tr);
+  });
+
+  // Week selector + responses
+  const weekSel = document.getElementById(`${prefix}-weeks`);
+  const respDiv = document.getElementById(`${prefix}-responses`);
+  turns.forEach((t, i) => {
+    if (!t.persona_responses || Object.keys(t.persona_responses).length === 0) return;
+    const btn = document.createElement('div');
+    btn.className = 'week-btn' + (i === 0 ? ' active' : '');
+    btn.textContent = `Week ${t.week}`;
+    btn.onclick = () => {
+      weekSel.querySelectorAll('.week-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      showResponses(prefix, t);
+    };
+    weekSel.appendChild(btn);
+  });
+  // Show first week
+  const firstWithResponses = turns.find(t => t.persona_responses && Object.keys(t.persona_responses).length > 0);
+  if (firstWithResponses) showResponses(prefix, firstWithResponses);
+}
+
+function showResponses(prefix, turn) {
+  const div = document.getElementById(`${prefix}-responses`);
+  const icons = { skeptical_ic: '&#x1F534;', enthusiastic_champion: '&#x1F7E2;', risk_averse_vp: '&#x1F7E1;', overwhelmed_it_admin: '&#x1F7E0;' };
+  let html = '';
+  for (const [persona, response] of Object.entries(turn.persona_responses)) {
+    const name = persona.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    html += `<div class="response-card"><h4>${icons[persona] || ''} ${name}</h4><p>${response}</p></div>`;
+  }
+  div.innerHTML = html || '<p style="color:var(--dim)">No responses this week.</p>';
+}
+
+function renderComparison() {
+  const oldKB = DATA.disruption_old_kb;
+  const newKB = DATA.disruption_new_kb;
+  if (!oldKB || !newKB) return;
+
+  const oldWeeks = oldKB.meta.weeks_elapsed;
+  const newWeeks = newKB.meta.weeks_elapsed;
+  const oldIvs = oldKB.turns.reduce((s, t) => s + t.interventions.length, 0);
+  const newIvs = newKB.turns.reduce((s, t) => s + t.interventions.length, 0);
+
+  document.getElementById('comp-headline').textContent = `${oldWeeks - newWeeks} week faster. ${oldIvs - newIvs} fewer interventions.`;
+  document.getElementById('comp-narrative').textContent = `Under disruption conditions, the orchestrator with field-tested tactics reached the same adoption target with fewer moves. Domain expertise reduces waste, not just adds options.`;
+
+  const table = document.getElementById('comp-table');
+  const rows = [
+    ['Weeks to target', `${oldWeeks}`, `${newWeeks}`, newWeeks < oldWeeks],
+    ['Total interventions', `${oldIvs}`, `${newIvs}`, newIvs < oldIvs],
+    ['Final adoption', `${(oldKB.meta.final_adoption * 100).toFixed(1)}%`, `${(newKB.meta.final_adoption * 100).toFixed(1)}%`, false],
+    ['Events weathered', `${oldKB.turns.reduce((s, t) => s + t.events_fired.length, 0)}`, `${newKB.turns.reduce((s, t) => s + t.events_fired.length, 0)}`, false],
+  ];
+  rows.forEach(([label, old, neu, isBetter]) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${label}</td><td>${old}</td><td class="${isBetter ? 'better' : ''}">${neu}${isBetter ? ' &#x2193;' : ''}</td>`;
+    table.appendChild(tr);
+  });
+
+  // Overlay chart
+  const oldAdopt = oldKB.turns.map(t => t.adoption_metrics.overall_adoption_pct);
+  const newAdopt = newKB.turns.map(t => t.adoption_metrics.overall_adoption_pct);
+  Plotly.newPlot('comp-adoption-chart', [
+    { x: oldKB.turns.map(t => t.week), y: oldAdopt, mode: 'lines+markers', name: 'Generic KB (18)', line: { color: '#8b949e', width: 2, dash: 'dash' } },
+    { x: newKB.turns.map(t => t.week), y: newAdopt, mode: 'lines+markers', name: 'Field-tested KB (44)', line: { color: '#3fb950', width: 3 } },
+  ], {
+    paper_bgcolor: '#161b22', plot_bgcolor: '#161b22',
+    font: { color: '#8b949e' },
+    yaxis: { tickformat: '.0%', range: [0, 1], gridcolor: '#30363d', title: 'Adoption' },
+    xaxis: { title: 'Week', gridcolor: '#30363d' },
+    margin: { l: 50, r: 20, t: 20, b: 40 },
+    legend: { x: 0, y: 1.1, orientation: 'h' },
+    shapes: [
+      { type: 'line', x0: 5, x1: 5, y0: 0, y1: 1, line: { color: '#f85149', dash: 'dot', width: 1 } },
+      { type: 'line', x0: 10, x1: 10, y0: 0, y1: 1, line: { color: '#f85149', dash: 'dot', width: 1 } },
+    ],
+    annotations: [
+      { x: 5, y: 0.95, text: 'Competing Tool', showarrow: false, font: { color: '#f85149', size: 10 } },
+      { x: 10, y: 0.95, text: 'Sponsor Departure', showarrow: false, font: { color: '#f85149', size: 10 } },
+    ],
+  }, { responsive: true });
+}
+
+function renderAudit() {
+  const run = DATA.success;
+  if (!run || !run.audit.length) return;
+  const audit = run.audit;
+
+  const total = audit.length;
+  const auto = audit.filter(d => d.routing_lane === 'auto_execute').length;
+  const review = audit.filter(d => d.routing_lane === 'human_review').length;
+  const escalate = audit.filter(d => d.routing_lane === 'escalate').length;
+  const avgConf = (audit.reduce((s, d) => s + d.confidence_score, 0) / total).toFixed(0);
+
+  document.getElementById('audit-kpis').innerHTML = `
+    <div class="kpi"><div class="kpi-value">${total}</div><div class="kpi-label">Total Routed</div></div>
+    <div class="kpi"><div class="kpi-value green">${auto}</div><div class="kpi-label">Auto-Execute</div></div>
+    <div class="kpi"><div class="kpi-value yellow">${review}</div><div class="kpi-label">Human Review</div></div>
+    <div class="kpi"><div class="kpi-value red">${escalate}</div><div class="kpi-label">Escalated</div></div>
+    <div class="kpi"><div class="kpi-value">${avgConf}%</div><div class="kpi-label">Avg Confidence</div></div>
+  `;
+
+  // Confidence chart
+  const colors = { auto_execute: '#3fb950', human_review: '#d29922', escalate: '#f85149' };
+  Plotly.newPlot('audit-confidence-chart', [{
+    x: audit.map(d => d.week),
+    y: audit.map(d => d.confidence_score),
+    mode: 'markers',
+    marker: { color: audit.map(d => colors[d.routing_lane] || '#8b949e'), size: 10 },
+    text: audit.map(d => `${d.intervention_type} -> ${d.target_persona}`),
+    hovertemplate: '%{text}<br>Confidence: %{y:.0%}<extra></extra>',
+  }], {
+    paper_bgcolor: '#161b22', plot_bgcolor: '#161b22',
+    font: { color: '#8b949e' },
+    yaxis: { tickformat: '.0%', range: [0, 1], gridcolor: '#30363d', title: 'Confidence' },
+    xaxis: { title: 'Week', gridcolor: '#30363d' },
+    margin: { l: 50, r: 20, t: 20, b: 40 },
+    shapes: [
+      { type: 'line', y0: 0.80, y1: 0.80, x0: 0, x1: 25, line: { color: '#3fb950', dash: 'dash', width: 1 } },
+      { type: 'line', y0: 0.50, y1: 0.50, x0: 0, x1: 25, line: { color: '#f85149', dash: 'dash', width: 1 } },
+    ],
+  }, { responsive: true });
+
+  // Table
+  const table = document.getElementById('audit-table');
+  audit.forEach(d => {
+    const tr = document.createElement('tr');
+    const laneClass = d.routing_lane === 'auto_execute' ? 'badge-green' : d.routing_lane === 'human_review' ? 'badge-yellow' : 'badge-red';
+    tr.innerHTML = `<td>${d.week}</td><td>${d.intervention_type}</td><td>${d.target_persona}</td><td>${(d.confidence_score * 100).toFixed(0)}%</td><td><span class="badge ${laneClass}">${d.routing_lane}</span></td>`;
+    table.appendChild(tr);
+  });
+}
+
+// Tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
+    window.dispatchEvent(new Event('resize'));
+  });
+});
+
+init();
+</script>
+</body>
+</html>
