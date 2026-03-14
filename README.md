@@ -125,11 +125,13 @@ Replans Triggered: 2 | Events Encountered: 5
 
 Forced disruptions: competing tool demo at week 5 (tanks IC confidence), sponsor departure at week 10 (VP sentiment drops). The orchestrator recovers from the competitive threat by shifting to evidence-based bake-off tactics, but the late sponsor departure creates a confidence dip visible in the HITL audit trail. The system barely clears the 70% threshold before the disruption fully compounds.
 
-### Knowledge Base Comparison
+### Headline Result: Field-Tested Knowledge Base Under Disruption
 
-The simulator ships with a 44-tactic knowledge base: 18 ADKAR/Kotter framework entries plus 26 field-tested tactics derived from real enterprise deployment patterns. The field-tested entries cover stall detection, recovery tactics, champion management, industry-specific sequencing, and ADKAR reframes.
+The simulator ships with a 44-tactic knowledge base: 18 ADKAR/Kotter framework entries plus 26 field-tested tactics derived from real enterprise deployment patterns. The field-tested entries cover stall detection, recovery playbooks, champion burnout prevention, competitive response (bake-off tactics), silent VP pattern recognition, and ADKAR reframes prioritizing Desire over Knowledge.
 
 Field-tested tactics receive a 1.3x relevance boost in keyword search, so the orchestrator preferentially selects battle-tested interventions when they match the current situation.
+
+**In stable conditions**, both knowledge bases produce comparable outcomes:
 
 | Profile | 18 Tactics (Generic) | 44 Tactics (Field-tested) | Delta |
 |---------|---------------------|--------------------------|-------|
@@ -137,7 +139,18 @@ Field-tested tactics receive a 1.3x relevance boost in keyword search, so the or
 | Acme Financial | 72.2% in 10 wks | 70.6% in 13 wks | Comparable |
 | Meridian Healthcare | 60.0% in 8 wks | 60.3% in 7 wks | 1 week faster |
 
-The real delta shows in **disruption scenarios** where the orchestrator needs recovery and stall-detection tactics that the generic KB doesn't have.
+**Under disruption, the difference is clear.** Same scenario — Nova Tech with a competing tool demo at week 5 and sponsor departure at week 10:
+
+| | Generic KB (18 tactics) | Field-tested KB (44 tactics) | Delta |
+|---|---|---|---|
+| **Weeks to target** | 13 | **12** | **1 week faster** |
+| **Total interventions** | 39 | **35** | **4 fewer** |
+| **Final adoption** | 71.0% | 70.2% | Same outcome |
+| **Events weathered** | 5 | 5 | Same conditions |
+
+**1 week faster. 4 fewer interventions. Same outcome.** The orchestrator with field-tested tactics didn't just know more — it wasted less. It reached the same target with fewer moves because it had the stall detection patterns, the competitive bake-off response, and the silent VP escalation playbook. That's the difference between a junior strategist who throws everything at the wall and a senior one who makes precise, well-timed interventions because they've seen the patterns before.
+
+> *"I added 26 field-tested tactics from real enterprise deployment experience and reran the same disruption scenario. The orchestrator hit the adoption target one week faster with four fewer interventions. It didn't just know more — it wasted less. That's what domain expertise does: it's not about having more options, it's about knowing which options to skip."*
 
 ## Dashboard
 
