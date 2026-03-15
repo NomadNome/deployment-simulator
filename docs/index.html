@@ -91,23 +91,8 @@
     </table>
 
     <h2>Architecture</h2>
-    <pre style="background:var(--surface);padding:16px;border-radius:8px;overflow-x:auto;font-size:0.85em;">
-Simulation Controller (turn management, events, state, termination)
-  |
-  +-- HITL Router (confidence routing, audit trail)
-  +-- Flywheel Metrics (Pilot Scorecard, CS-grade KPIs)
-  |
-  +-- Orchestrator Agent (Claude Sonnet + 3 tools)
-  |     +-- RAG Knowledge Base (44 tactics: ADKAR + Kotter + field-tested)
-  |     +-- Adoption Metrics Tracker
-  |     +-- Re-planner Tool
-  |
-  +-- Persona Agents (Claude Haiku x4)
-        +-- Skeptical IC (needs evidence, high technical bar)
-        +-- Enthusiastic Champion (early adopter, burnout risk)
-        +-- Risk-Averse VP (ROI-focused, controls budget)
-        +-- Overwhelmed IT Admin (ticket-buried, silent bottleneck)
-    </pre>
+    <img src="screenshot_architecture.png" alt="Sandbox architecture diagram" style="width:100%;border-radius:8px;border:1px solid var(--border);margin:12px 0;" />
+    <p style="color:var(--dim);font-size:0.85em;margin-top:8px;">Three agent backends: <code>--backend vanilla</code> (direct API, in-process), <code>--backend strands</code> (Strands SDK with @tool decorators), <code>--backend sandbox</code> (per-agent Docker MicroVM isolation). State mutations always stay on the host — sandboxes are stateless request/response endpoints.</p>
   </div>
 
   <!-- SUCCESS RUN -->
