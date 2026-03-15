@@ -14,12 +14,16 @@ from rich.text import Text
 from src.agents import create_orchestrator_agent, create_persona_agent
 from src.agents.persona import initialize_persona_states
 from src.models import (
-    AdoptionMetrics, InterventionRecord, OrgProfile, PersonaType,
+    AdoptionMetrics, Intervention, InterventionRecord, OrgProfile, PersonaType,
     SimulationOutcome, SimulationState, TurnRecord,
 )
 from src.simulation.events import roll_events
 from src.simulation.flywheel_metrics import FlywheelMetricsTracker
 from src.simulation.hitl_router import HITLMode, HITLRouter, estimate_confidence
+from src.simulation.realism import (
+    apply_blind_spot, fatigue_multiplier, fatigue_prompt_addition,
+    grudge_effect_multiplier, roll_blind_spot, roll_friction, update_grudge,
+)
 
 console = Console()
 
@@ -46,7 +50,7 @@ class SimulationController:
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize agents (factory switches between vanilla and Strands)
+        # Initialize agents (factory switches between vanilla/strands/sandbox)
         self.orchestrator = create_orchestrator_agent()
         self.persona_agents = {
             pt: create_persona_agent(pt) for pt in PersonaType
@@ -54,8 +58,11 @@ class SimulationController:
         self.flywheel = FlywheelMetricsTracker()
         self.router = HITLRouter(mode=hitl_mode)
 
-        # Track active events for confidence estimation
+        # Realism tracking
         self._active_events_this_week: int = 0
+        self._friction_count: int = 0
+        self._blind_spot_count: int = 0
+        self._pending_queue: list[Intervention] = []  # delayed interventions
 
         # Initialize simulation state
         self.state = SimulationState(
@@ -118,20 +125,53 @@ class SimulationController:
             if events:
                 for event in events:
                     self._apply_event(event)
+                    # Events without follow-up increase grudge for affected personas
+                    for ptype in event.affected_personas:
+                        if ptype in self.state.persona_states:
+                            modifier = event.sentiment_modifiers.get(ptype, 0)
+                            if modifier < 0:
+                                self.state.persona_states[ptype].grudge_score = min(
+                                    1.0, self.state.persona_states[ptype].grudge_score + 0.08
+                                )
 
-            # Step 2: Orchestrator plans interventions
+            # Step 2: Orchestrator blind spot — degrade info before orchestrator sees it
+            blind_spot = roll_blind_spot(self.state, seed=self.event_seed, week=week)
+            orchestrator_responses = persona_responses
+            if blind_spot.hit:
+                self._blind_spot_count += 1
+                orchestrator_responses = apply_blind_spot(blind_spot, persona_responses, self.state)
+                self._print(f"  [dim magenta]Blind spot: {blind_spot.spot_type}[/dim magenta]")
+
+            # If metrics_lag blind spot, serve stale metrics
+            stale_metrics = None
+            if blind_spot.hit and blind_spot.spot_type == "metrics_lag" and len(self.state.turn_history) >= 2:
+                stale_metrics = self.state.metrics
+                self.state.metrics = self.state.turn_history[-2].adoption_metrics
+
+            # Step 3: Orchestrator plans interventions
             self._print("[dim]Orchestrator reasoning...[/dim]")
             reasoning, interventions = self.orchestrator.run_turn(
-                self.state, persona_responses
+                self.state, orchestrator_responses
             )
 
-            # Step 3: Route interventions through HITL, then dispatch to personas
-            # Cap interventions per week (weak sponsors = less organizational access)
-            capped_interventions = interventions[:self.max_interventions_per_week]
+            # Restore real metrics if we served stale ones
+            if stale_metrics is not None:
+                self.state.metrics = stale_metrics
+
+            # Step 4: Merge delayed interventions from pending queue
+            requeued = list(self._pending_queue)
+            self._pending_queue.clear()
+            all_interventions = requeued + interventions
+
+            # Cap interventions per week
+            capped_interventions = all_interventions[:self.max_interventions_per_week]
+
+            # Step 5: Route through HITL, apply friction, dispatch to personas
             persona_responses = {}
-            approved_interventions = []
+            contacted_personas: set[PersonaType] = set()
+
             for intervention in capped_interventions:
-                # Estimate confidence and route through HITL
+                # HITL routing
                 confidence = estimate_confidence(
                     intervention=intervention,
                     week=week,
@@ -152,19 +192,51 @@ class SimulationController:
                     )
                     continue
 
-                approved_interventions.append(routed_intervention)
                 target = routed_intervention.target_persona
 
+                # Execution friction roll
+                friction = roll_friction(seed=self.event_seed, week=week)
+                if friction.hit:
+                    self._friction_count += 1
+                    if friction.outcome_type == "delayed":
+                        self._pending_queue.append(routed_intervention)
+                        self._print(
+                            f"  [yellow]⏳[/yellow] {routed_intervention.intervention_type.value} "
+                            f"→ {target.value} [dim](delayed — rescheduled)[/dim]"
+                        )
+                        update_grudge(self.state.persona_states[target], "delayed", had_contact=False)
+                        continue
+                    elif friction.outcome_type == "cancelled":
+                        self._print(
+                            f"  [red]✕[/red] {routed_intervention.intervention_type.value} "
+                            f"→ {target.value} [dim](cancelled — {friction.description})[/dim]"
+                        )
+                        update_grudge(self.state.persona_states[target], "cancelled", had_contact=False)
+                        continue
+                    elif friction.outcome_type == "backfire":
+                        self._print(
+                            f"  [red]💥[/red] {routed_intervention.intervention_type.value} "
+                            f"→ {target.value} [dim](backfired!)[/dim]"
+                        )
+                        update_grudge(self.state.persona_states[target], "backfire", had_contact=True)
+                    elif friction.outcome_type == "degraded":
+                        self._print(
+                            f"  [yellow]▽[/yellow] {routed_intervention.intervention_type.value} "
+                            f"→ {target.value} [dim](degraded — {friction.description})[/dim]"
+                        )
+
                 if target in self.persona_agents:
+                    contacted_personas.add(target)
                     lane_indicator = (
                         "[green]●[/green]" if confidence >= 0.80
                         else "[yellow]●[/yellow]" if confidence >= 0.50
                         else "[red]●[/red]"
                     )
-                    self._print(
-                        f"  {lane_indicator} {routed_intervention.intervention_type.value} "
-                        f"→ {target.value} [dim](conf: {confidence:.0%})[/dim]"
-                    )
+                    if not friction.hit:
+                        self._print(
+                            f"  {lane_indicator} {routed_intervention.intervention_type.value} "
+                            f"→ {target.value} [dim](conf: {confidence:.0%})[/dim]"
+                        )
 
                     # Get persona response
                     response = self.persona_agents[target].respond(
@@ -174,30 +246,63 @@ class SimulationController:
                     )
                     persona_responses[target] = response
 
-                    # Update hidden state
-                    effect = self.persona_agents[target].update_state(
+                    # Compute effect with realism factors
+                    base_effect = self.persona_agents[target].update_state(
                         state=self.state.persona_states[target],
                         intervention=routed_intervention,
                         all_states=self.state.persona_states,
                     )
 
+                    # Apply fatigue multiplier
+                    fatigue_mult = fatigue_multiplier(
+                        self.state.persona_states[target],
+                        routed_intervention.intervention_type,
+                    )
+
+                    # Apply grudge dampening
+                    grudge_mult = grudge_effect_multiplier(self.state.persona_states[target])
+
+                    # Apply friction effect
+                    friction_mult = friction.effect_multiplier
+
+                    # Combined realism adjustment (apply to the delta already applied by update_state)
+                    combined_mult = fatigue_mult * grudge_mult * friction_mult
+                    if combined_mult != 1.0 and base_effect != 0:
+                        # Undo the original effect and reapply with realism multipliers
+                        correction = base_effect * (combined_mult - 1.0)
+                        self.state.persona_states[target].apply_sentiment_modifier(correction)
+
+                    # Update grudge (successful contact)
+                    update_grudge(self.state.persona_states[target], None, had_contact=True)
+                    # Successful intervention reduces grudge slightly
+                    if base_effect > 0:
+                        self.state.persona_states[target].grudge_score = max(
+                            0.0, self.state.persona_states[target].grudge_score - 0.05
+                        )
+
                     # Record intervention
+                    effective_effect = round(base_effect * combined_mult, 4)
                     self.state.persona_states[target].intervention_history.append(
                         InterventionRecord(
                             week=week,
                             intervention_type=routed_intervention.intervention_type,
                             content_summary=routed_intervention.content[:100],
-                            sentiment_effect=round(effect, 4),
+                            sentiment_effect=effective_effect,
                         )
                     )
 
                     self._print(f"    [dim]{response}[/dim]")
 
-            # Step 4: Update flywheel metrics
+            # Update grudge for personas NOT contacted this turn
+            for ptype, pstate in self.state.persona_states.items():
+                if ptype not in contacted_personas:
+                    update_grudge(pstate, None, had_contact=False)
+
+            # Step 6: Update flywheel metrics
             flywheel = self.flywheel.compute(self.state, override_rate=self.router.override_rate)
             self.state.metrics = self._flywheel_to_adoption_metrics(flywheel)
 
-            # Step 5: Log the turn
+            # Step 7: Log the turn
             replan_triggered = "trigger_replan" in (reasoning or "")
             turn = TurnRecord(
                 week=week,
@@ -213,7 +318,7 @@ class SimulationController:
             # Display metrics
             self._display_metrics()
 
-            # Step 6: Check termination
+            # Step 8: Check termination
             outcome = self._check_termination()
             if outcome != SimulationOutcome.IN_PROGRESS:
                 self.state.outcome = outcome
@@ -302,6 +407,8 @@ class SimulationController:
             f"Total Interventions: {sum(len(t.interventions) for t in self.state.turn_history)}\n"
             f"Events Encountered: {sum(len(t.events_fired) for t in self.state.turn_history)}\n"
             f"Replans Triggered: {sum(1 for t in self.state.turn_history if t.replan_triggered)}\n"
+            f"Friction Events: {self._friction_count}\n"
+            f"Blind Spots: {self._blind_spot_count}\n"
             f"{hitl_line}",
             title="Simulation Summary",
             border_style=color,
@@ -313,15 +420,18 @@ class SimulationController:
         table.add_column("Sentiment")
         table.add_column("Adoption")
         table.add_column("Trust")
-        table.add_column("Interventions Received")
+        table.add_column("Grudge")
+        table.add_column("Interventions")
 
         for ptype, pstate in self.state.persona_states.items():
             s_color = "green" if pstate.sentiment_score > 0.6 else "yellow" if pstate.sentiment_score > 0.35 else "red"
+            g_color = "green" if pstate.grudge_score < 0.2 else "yellow" if pstate.grudge_score < 0.5 else "red"
             table.add_row(
                 ptype.value,
                 f"[{s_color}]{pstate.sentiment_score:.2f}[/{s_color}]",
                 f"{pstate.adoption_likelihood:.2f}",
                 f"{pstate.trust_level:.2f}",
+                f"[{g_color}]{pstate.grudge_score:.2f}[/{g_color}]",
                 str(len(pstate.intervention_history)),
             )
         self._print(table)
@@ -350,12 +460,15 @@ class SimulationController:
             "weeks_elapsed": self.state.current_week,
             "total_interventions": sum(len(t.interventions) for t in self.state.turn_history),
             "events_encountered": sum(len(t.events_fired) for t in self.state.turn_history),
+            "friction_events": self._friction_count,
+            "blind_spots": self._blind_spot_count,
             "persona_final_states": {
                 ptype.value: {
                     "sentiment": round(pstate.sentiment_score, 3),
                     "adoption": round(pstate.adoption_likelihood, 3),
                     "trust": round(pstate.trust_level, 3),
                     "cognitive_load": round(pstate.cognitive_load, 3),
+                    "grudge": round(pstate.grudge_score, 3),
                     "interventions_received": len(pstate.intervention_history),
                 }
                 for ptype, pstate in self.state.persona_states.items()

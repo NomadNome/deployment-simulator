@@ -94,6 +94,8 @@ class PersonaState(BaseModel):
     adoption_likelihood: float = Field(default=0.3, ge=0.0, le=1.0)
     trust_level: float = Field(default=0.5, ge=0.0, le=1.0)
     cognitive_load: float = Field(default=0.3, ge=0.0, le=1.0)
+    grudge_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    weeks_since_contact: int = Field(default=0)
     influenced_by: list[PersonaType] = Field(default_factory=list)
     intervention_history: list[InterventionRecord] = Field(default_factory=list)
 
