@@ -10,13 +10,13 @@ from src.models import Intervention, InterventionType, PersonaState, PersonaType
 
 # ── Execution Friction ────────────────────────────────────────
 
-FRICTION_PROBABILITY = 0.25
+FRICTION_PROBABILITY = 0.12  # 12% — most interventions land clean
 
 FRICTION_OUTCOMES = [
-    {"type": "delayed", "weight": 0.40, "description": "Intervention delayed — rescheduled to next week"},
+    {"type": "delayed", "weight": 0.50, "description": "Intervention delayed — rescheduled to next week"},
     {"type": "degraded", "weight": 0.35, "description": "Degraded — low attendance, technical issues, key person absent"},
-    {"type": "cancelled", "weight": 0.15, "description": "Cancelled — competing meeting, priority shift"},
-    {"type": "backfire", "weight": 0.10, "description": "Backfired — poorly timed, created frustration"},
+    {"type": "cancelled", "weight": 0.10, "description": "Cancelled — competing meeting, priority shift"},
+    {"type": "backfire", "weight": 0.05, "description": "Backfired — poorly timed, created frustration"},
 ]
 
 
@@ -57,14 +57,25 @@ def roll_friction(seed: int | None = None, week: int = 0) -> FrictionResult:
 # ── Intervention Fatigue ──────────────────────────────────────
 
 FATIGUE_MULTIPLIERS = [1.0, 0.7, 0.4, 0.2]
+FATIGUE_RESET_GAP = 1  # 1 week of different type resets fatigue
 
 
 def fatigue_multiplier(persona_state: PersonaState, intervention_type: InterventionType) -> float:
-    """Reduce effectiveness when the same intervention type is used repeatedly."""
-    count = sum(
-        1 for record in persona_state.intervention_history
-        if record.intervention_type == intervention_type
-    )
+    """Reduce effectiveness when the same intervention type is used repeatedly.
+
+    Fatigue resets if the most recent intervention was a different type
+    (1 week gap of variety is enough to feel fresh).
+    """
+    history = persona_state.intervention_history
+    if history and history[-1].intervention_type != intervention_type:
+        # Last intervention was different — partial fatigue reset
+        # Only count consecutive same-type from before the gap
+        count = 0
+    else:
+        count = sum(
+            1 for record in history
+            if record.intervention_type == intervention_type
+        )
     return FATIGUE_MULTIPLIERS[min(count, len(FATIGUE_MULTIPLIERS) - 1)]
 
 
@@ -85,19 +96,12 @@ def fatigue_prompt_addition(persona_state: PersonaState, intervention_type: Inte
 
 # ── Orchestrator Blind Spots ──────────────────────────────────
 
-BLIND_SPOT_BASE_PROBABILITY = 0.15
+BLIND_SPOT_BASE_PROBABILITY = 0.08  # 8% per turn
 
 BLIND_SPOT_TYPES = [
-    {"type": "persona_omission", "weight": 0.40},
-    {"type": "signal_misread", "weight": 0.35},
-    {"type": "metrics_lag", "weight": 0.25},
-]
-
-OPTIMISTIC_SUMMARIES = [
-    "Cautiously interested, asked clarifying questions about next steps.",
-    "Seemed engaged, nodded along during the discussion.",
-    "Brief but positive — mentioned they'd think about it.",
-    "Acknowledged the value, asked about timeline.",
+    {"type": "persona_omission", "weight": 0.60},
+    {"type": "metrics_lag", "weight": 0.40},
+    # signal_misread removed — too punishing when stacked with friction
 ]
 
 
@@ -105,7 +109,7 @@ OPTIMISTIC_SUMMARIES = [
 class BlindSpotResult:
     """Result of a blind spot roll."""
     hit: bool
-    spot_type: str  # "none", "persona_omission", "signal_misread", "metrics_lag"
+    spot_type: str  # "none", "persona_omission", "metrics_lag"
     affected_persona: PersonaType | None = None
 
 
@@ -128,7 +132,7 @@ def roll_blind_spot(
             counts = Counter(all_targets)
             most_common_pct = counts.most_common(1)[0][1] / len(all_targets)
             if most_common_pct > 0.6:
-                prob = 0.25  # tunnel vision increases blind spot chance
+                prob = 0.15  # tunnel vision increases blind spot chance
 
     if random.random() > prob:
         return BlindSpotResult(hit=False, spot_type="none")
@@ -139,7 +143,6 @@ def roll_blind_spot(
     for spot in BLIND_SPOT_TYPES:
         cumulative += spot["weight"]
         if roll <= cumulative:
-            # Pick affected persona (bias toward less-targeted personas)
             personas = list(state.persona_states.keys())
             affected = random.choice(personas)
             return BlindSpotResult(hit=True, spot_type=spot["type"], affected_persona=affected)
@@ -161,9 +164,6 @@ def apply_blind_spot(
     if blind_spot.spot_type == "persona_omission" and blind_spot.affected_persona in modified:
         del modified[blind_spot.affected_persona]
 
-    elif blind_spot.spot_type == "signal_misread" and blind_spot.affected_persona in modified:
-        modified[blind_spot.affected_persona] = random.choice(OPTIMISTIC_SUMMARIES)
-
     elif blind_spot.spot_type == "metrics_lag" and len(state.turn_history) >= 2:
         # Serve stale metrics — handled in controller by swapping state.metrics
         pass
@@ -173,7 +173,6 @@ def apply_blind_spot(
 
 # ── Grudge System ─────────────────────────────────────────────
 
-# Grudge accumulation rates by persona (IC holds grudges longest)
 GRUDGE_DECAY_RATE = {
     PersonaType.SKEPTICAL_IC: 0.01,           # very slow forgiveness
     PersonaType.ENTHUSIASTIC_CHAMPION: 0.04,  # wants to believe
@@ -184,21 +183,21 @@ GRUDGE_DECAY_RATE = {
 
 def update_grudge(persona_state: PersonaState, friction_type: str | None = None, had_contact: bool = True) -> None:
     """Update grudge score based on what happened this turn."""
-    # Accumulate grudge
+    # Accumulate grudge (halved rates)
     if friction_type == "backfire":
-        persona_state.grudge_score = min(1.0, persona_state.grudge_score + 0.15)
+        persona_state.grudge_score = min(1.0, persona_state.grudge_score + 0.08)
     elif friction_type in ("cancelled", "delayed"):
-        persona_state.grudge_score = min(1.0, persona_state.grudge_score + 0.05)
+        persona_state.grudge_score = min(1.0, persona_state.grudge_score + 0.025)
 
-    # No contact penalty
+    # No contact penalty (halved)
     if had_contact:
         persona_state.weeks_since_contact = 0
     else:
         persona_state.weeks_since_contact += 1
         if persona_state.weeks_since_contact >= 3:
-            persona_state.grudge_score = min(1.0, persona_state.grudge_score + 0.10)
+            persona_state.grudge_score = min(1.0, persona_state.grudge_score + 0.05)
 
-    # Natural decay
+    # Natural decay (unchanged)
     decay = GRUDGE_DECAY_RATE.get(persona_state.persona_type, 0.02)
     persona_state.grudge_score = max(0.0, persona_state.grudge_score - decay)
 
