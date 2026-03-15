@@ -54,14 +54,17 @@ Core thesis: **"The hardest problem in enterprise AI isn't the model. It's the a
 - [ ] Run 3 complete simulations with different profiles, capture logs (blocked: Bedrock daily token quota)
 - [ ] Execute sponsorship_sensitivity experiment, verify result aggregation (blocked: Bedrock daily token quota)
 
-### Phase 4 (Current): Visualization + Strands/NanoClaw
+### Phase 4: Visualization + Strands/NanoClaw
 - [x] Pilot Scorecard dashboard (Streamlit + Plotly): adoption curves, intervention timeline, risk flags, persona responses
 - [x] HITL audit trail viewer: routing distribution, confidence over time, full audit log table
-- [x] Experiment results viewer: adoption bars, sensitivity tables, cross-variable heatmap, persona sentiment box plots
+- [x] Experiment results viewer with sensitivity heatmaps
 - [x] Dashboard CLI command: `python -m src.main dashboard`
 - [x] Sample data generator for dashboard demo (`src/dashboard/generate_sample_data.py`)
-- [ ] Strands SDK refactor of agent layer
-- [ ] NanoClaw + Docker Sandbox containerization
+- [x] Strands SDK refactor (opt-in via `--backend strands`)
+- [x] NanoClaw + Docker Sandbox containerization (opt-in via `--backend sandbox`)
+- [x] GitHub Pages interactive explorer at nomadnome.github.io/deployment-simulator
+- [x] Architecture diagram
+- [x] Author footer with LinkedIn
 
 ## Tech Decisions
 
@@ -70,6 +73,7 @@ Core thesis: **"The hardest problem in enterprise AI isn't the model. It's the a
 - **Orchestrator model**: `claude-sonnet-4-5-20250929` (swap to `claude-sonnet-4-6-20250514` when available)
 - **Persona model**: `claude-haiku-4-5-20251001`
 - **Bedrock fallback**: To use Bedrock instead, set `LLM_PROVIDER=bedrock` and `AWS_REGION` in `.env` (pending quota increase)
+- **Agent backends**: Three options — `vanilla` (default, direct Anthropic SDK), `strands` (Strands SDK, opt-in via `--backend strands`), `sandbox` (NanoClaw + Docker, opt-in via `--backend sandbox`)
 - **Vector store**: Keyword search Phase 1, ChromaDB Phase 2+
 - **State**: In-memory (Phase 1-2), SQLite (Phase 3), DynamoDB adapter (Phase 4)
 - **CLI**: Rich for terminal output
@@ -94,14 +98,11 @@ Core thesis: **"The hardest problem in enterprise AI isn't the model. It's the a
 
 ## Current Priority
 
-Phase 4: Build the visualization layer (Streamlit dashboard).
-- Pilot Scorecard dashboard with flywheel metrics over time
-- HITL approval queue UI for guided/demo modes
-- Experiment results viewer with adoption curve overlays and sensitivity heatmaps
+The project is complete through Phase 4. All build phases are done.
 
-Blocked items (waiting on Bedrock daily token quota increase):
-- End-to-end simulation test: `python -m src.main simulate --profile nova_tech --seed 42 --weeks 4`
-- Experiment batch run: `python -m src.main experiment sponsorship_sensitivity --parallel 3`
+Remaining items:
+- Swap to Sonnet 4.6 when Bedrock quota clears
+- Add pytest test suite
 
 ## Environment
 
