@@ -93,9 +93,9 @@ def main():
     )
     sim_parser.add_argument(
         "--backend",
-        choices=["vanilla", "strands"],
+        choices=["vanilla", "strands", "sandbox"],
         default=None,
-        help="Agent backend: vanilla (direct Anthropic API) or strands (Strands SDK)",
+        help="Agent backend: vanilla (direct API), strands (Strands SDK), or sandbox (Docker isolation)",
     )
 
     # ── experiment command ──

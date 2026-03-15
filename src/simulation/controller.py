@@ -223,6 +223,10 @@ class SimulationController:
         self._display_summary()
         self._save_log()
 
+        # Cleanup sandboxes if running in sandbox mode
+        from src.agents import cleanup_sandboxes
+        cleanup_sandboxes()
+
         return self.state
 
     def _apply_event(self, event) -> None:

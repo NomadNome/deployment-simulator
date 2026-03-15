@@ -1,0 +1,61 @@
+version: "3.8"
+
+# Full sandbox deployment — each agent in its own isolated container.
+# Usage: docker compose -f docker-compose.sandbox.yml up
+# The simulation controller runs on the host and connects via HTTP.
+
+services:
+  orchestrator:
+    build:
+      context: .
+      dockerfile: src/sandbox/Dockerfile
+    environment:
+      - AGENT_ROLE=orchestrator
+      - AGENT_PORT=8080
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    ports:
+      - "9100:8080"
+
+  persona-skeptical-ic:
+    build:
+      context: .
+      dockerfile: src/sandbox/Dockerfile
+    environment:
+      - AGENT_ROLE=persona_skeptical_ic
+      - AGENT_PORT=8080
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    ports:
+      - "9101:8080"
+
+  persona-champion:
+    build:
+      context: .
+      dockerfile: src/sandbox/Dockerfile
+    environment:
+      - AGENT_ROLE=persona_enthusiastic_champion
+      - AGENT_PORT=8080
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    ports:
+      - "9102:8080"
+
+  persona-vp:
+    build:
+      context: .
+      dockerfile: src/sandbox/Dockerfile
+    environment:
+      - AGENT_ROLE=persona_risk_averse_vp
+      - AGENT_PORT=8080
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    ports:
+      - "9103:8080"
+
+  persona-it-admin:
+    build:
+      context: .
+      dockerfile: src/sandbox/Dockerfile
+    environment:
+      - AGENT_ROLE=persona_overwhelmed_it_admin
+      - AGENT_PORT=8080
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    ports:
+      - "9104:8080"
