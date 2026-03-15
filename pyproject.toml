@@ -22,6 +22,10 @@ frontend = [
     "streamlit>=1.40",
     "plotly>=5.24",
 ]
+strands = [
+    "strands-agents>=1.0",
+    "strands-agents-builder>=0.1",
+]
 
 [project.scripts]
 simulate = "src.main:main"

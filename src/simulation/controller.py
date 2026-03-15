@@ -11,8 +11,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from src.agents.orchestrator import OrchestratorAgent
-from src.agents.persona import PersonaAgent, initialize_persona_states
+from src.agents import create_orchestrator_agent, create_persona_agent
+from src.agents.persona import initialize_persona_states
 from src.models import (
     AdoptionMetrics, InterventionRecord, OrgProfile, PersonaType,
     SimulationOutcome, SimulationState, TurnRecord,
@@ -46,10 +46,10 @@ class SimulationController:
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize agents
-        self.orchestrator = OrchestratorAgent()
-        self.persona_agents: dict[PersonaType, PersonaAgent] = {
-            pt: PersonaAgent(pt) for pt in PersonaType
+        # Initialize agents (factory switches between vanilla and Strands)
+        self.orchestrator = create_orchestrator_agent()
+        self.persona_agents = {
+            pt: create_persona_agent(pt) for pt in PersonaType
         }
         self.flywheel = FlywheelMetricsTracker()
         self.router = HITLRouter(mode=hitl_mode)

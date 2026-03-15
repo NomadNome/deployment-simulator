@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
 from rich.console import Console
@@ -20,8 +21,13 @@ def run_simulation(args):
     if args.weeks:
         profile = profile.model_copy(update={"budget_weeks": args.weeks})
 
+    # Set agent backend from CLI flag
+    if hasattr(args, "backend") and args.backend:
+        os.environ["AGENT_BACKEND"] = args.backend
+
     console.print(f"\n[bold]Loading profile:[/bold] {args.profile}")
-    console.print(f"[bold]Event seed:[/bold] {args.seed or 'random'}\n")
+    console.print(f"[bold]Event seed:[/bold] {args.seed or 'random'}")
+    console.print(f"[bold]Backend:[/bold] {os.getenv('AGENT_BACKEND', 'vanilla')}\n")
 
     hitl_mode = HITLMode(args.mode) if hasattr(args, "mode") and args.mode else HITLMode.AUTOPILOT
     controller = SimulationController(
@@ -84,6 +90,12 @@ def main():
         choices=["autopilot", "guided", "demo"],
         default="autopilot",
         help="HITL mode: autopilot (auto-execute all), guided (pause on review/escalate), demo (pause on everything)",
+    )
+    sim_parser.add_argument(
+        "--backend",
+        choices=["vanilla", "strands"],
+        default=None,
+        help="Agent backend: vanilla (direct Anthropic API) or strands (Strands SDK)",
     )
 
     # ── experiment command ──
