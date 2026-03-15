@@ -92,7 +92,31 @@
 
     <h2>Architecture</h2>
     <img src="screenshot_architecture.png" alt="Sandbox architecture diagram" style="width:100%;border-radius:8px;border:1px solid var(--border);margin:12px 0;" />
-    <p style="color:var(--dim);font-size:0.85em;margin-top:8px;">Three agent backends: <code>--backend vanilla</code> (direct API, in-process), <code>--backend strands</code> (Strands SDK with @tool decorators), <code>--backend sandbox</code> (per-agent Docker MicroVM isolation). State mutations always stay on the host — sandboxes are stateless request/response endpoints.</p>
+
+    <h2>Three Execution Modes</h2>
+    <p style="color:var(--dim);margin-bottom:12px;">The simulator supports three agent backends — swap between them with a single CLI flag. Same simulation logic, same results, different isolation and orchestration guarantees.</p>
+    <table>
+      <tr><th>Mode</th><th>Flag</th><th>How It Works</th><th>Use Case</th></tr>
+      <tr>
+        <td><strong>Vanilla</strong></td>
+        <td><code>--backend vanilla</code></td>
+        <td>Direct Anthropic API calls, all agents in-process. Fastest execution.</td>
+        <td>Development, rapid iteration, batch experiments</td>
+      </tr>
+      <tr>
+        <td><strong>Strands SDK</strong></td>
+        <td><code>--backend strands</code></td>
+        <td>AWS Strands Agents with <code>@tool</code> decorators. Strands handles the agentic loop, tool routing, and provider abstraction.</td>
+        <td>Production-grade agent architecture, Bedrock integration</td>
+      </tr>
+      <tr>
+        <td><strong>Docker Sandbox</strong></td>
+        <td><code>--backend sandbox</code></td>
+        <td>Each agent runs in its own Docker container (MicroVM). The orchestrator cannot access persona hidden state. Personas cannot read each other. State mutations stay on the host.</td>
+        <td>Security-first deployments, CISO review, enterprise compliance</td>
+      </tr>
+    </table>
+    <p style="color:var(--dim);font-size:0.85em;margin-top:12px;">The containerized mode demonstrates the architecture that gets past enterprise security reviews. Most agent frameworks rely on application-level guardrails that assume agents will behave correctly. The sandbox approach assumes agents will misbehave and contains the damage architecturally — each agent has its own kernel, filesystem, and network boundary.</p>
   </div>
 
   <!-- SUCCESS RUN -->
