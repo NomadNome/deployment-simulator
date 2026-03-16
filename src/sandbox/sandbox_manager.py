@@ -99,7 +99,7 @@ class SandboxManager:
 
     def send_request(self, handle: SandboxHandle, path: str, payload: dict) -> dict:
         """Send a request to a sandbox and return the response."""
-        resp = requests.post(handle.url(path), json=payload, timeout=120)
+        resp = requests.post(handle.url(path), json=payload, timeout=300)
         resp.raise_for_status()
         return resp.json()
 
