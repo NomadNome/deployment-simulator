@@ -8,6 +8,7 @@ __pycache__/
 # Data (generated, not committed)
 data/simulation_logs/
 data/experiments/
+data/knowledge_base/
 
 # IDE
 .vscode/

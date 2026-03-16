@@ -40,8 +40,10 @@ def test_query_max_results():
 
 
 def test_query_no_match():
+    """Keyword fallback returns nothing for gibberish. Semantic search always returns nearest neighbors."""
     kb = KnowledgeBaseTool()
-    results = kb.query("xyznonexistent")
+    # Semantic search always returns results (nearest neighbors), so test the fallback
+    results = kb._keyword_query("xyznonexistent", max_results=3)
     assert len(results) == 0
 
 

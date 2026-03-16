@@ -109,6 +109,9 @@ def main():
     # ── dashboard command ──
     subparsers.add_parser("dashboard", help="Launch the Streamlit visualization dashboard")
 
+    # ── index-kb command ──
+    subparsers.add_parser("index-kb", help="Reindex the knowledge base (ChromaDB)")
+
     # ── list command ──
     subparsers.add_parser("list", help="List available profiles and experiments")
 
@@ -126,6 +129,11 @@ def main():
             "src/dashboard/app.py",
             "--server.headless", "true",
         ])
+    elif args.command == "index-kb":
+        from src.tools.knowledge_base import KnowledgeBaseTool
+        console.print("\n[bold]Reindexing knowledge base...[/bold]")
+        kb = KnowledgeBaseTool(reindex=True)
+        console.print(f"[bold green]Knowledge base indexed: {kb.collection.count()} tactics[/bold green]\n")
     elif args.command == "list":
         console.print("\n[bold]Profiles:[/bold]")
         for name, p in PROFILES.items():

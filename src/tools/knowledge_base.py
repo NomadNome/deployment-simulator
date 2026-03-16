@@ -1,10 +1,16 @@
-"""Knowledge Base Tool — RAG over change management frameworks and tactics."""
+"""Knowledge Base Tool — semantic retrieval over change management tactics."""
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from rich.console import Console
+
 from field_tested_tactics import FIELD_TESTED_TACTICS
 
-# In Phase 1, this is a simple in-memory lookup. In Phase 2+, swap in ChromaDB.
+console = Console()
+
+# ── Tactic Library (source of truth) ─────────────────────────
 
 TACTICS_LIBRARY: list[dict[str, str]] = [
     {
@@ -135,25 +141,123 @@ TACTICS_LIBRARY: list[dict[str, str]] = [
     },
 ]
 
-# Append field-tested tactics from real deployment patterns
+# Append field-tested tactics
 TACTICS_LIBRARY.extend(FIELD_TESTED_TACTICS)
 
 # IDs of field-tested entries for scoring boost
 _FIELD_TESTED_IDS = {t["id"] for t in FIELD_TESTED_TACTICS}
 
+# ChromaDB paths
+CHROMA_PATH = Path("data/knowledge_base/chroma_db")
+COLLECTION_NAME = "deployment_tactics"
+EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+
+
+# ── ChromaDB Knowledge Base ──────────────────────────────────
 
 class KnowledgeBaseTool:
-    """Simple keyword-based knowledge base. Replace with ChromaDB in Phase 2."""
+    """Semantic search over change management tactics using ChromaDB.
 
-    def __init__(self):
+    Falls back to keyword search if ChromaDB or sentence-transformers
+    are unavailable.
+    """
+
+    def __init__(self, reindex: bool = False):
+        self._chromadb_available = False
         self.tactics = TACTICS_LIBRARY
 
-    def query(self, query: str, max_results: int = 3) -> list[dict[str, str]]:
-        """Search tactics by keyword relevance.
+        try:
+            import chromadb
+            from chromadb.utils import embedding_functions
 
-        Field-tested entries receive a 1.3x scoring boost since they
-        encode patterns validated across real enterprise deployments.
-        """
+            CHROMA_PATH.mkdir(parents=True, exist_ok=True)
+            self._client = chromadb.PersistentClient(path=str(CHROMA_PATH))
+            self._ef = embedding_functions.SentenceTransformerEmbeddingFunction(
+                model_name=EMBEDDING_MODEL
+            )
+            self.collection = self._client.get_or_create_collection(
+                name=COLLECTION_NAME,
+                embedding_function=self._ef,
+                metadata={"hnsw:space": "cosine"},
+            )
+
+            if self.collection.count() == 0 or reindex:
+                self._index_tactics()
+
+            self._chromadb_available = True
+        except Exception as e:
+            console.print(f"[dim]ChromaDB unavailable, using keyword fallback: {e}[/dim]")
+
+    def _index_tactics(self):
+        """Index all tactics into ChromaDB."""
+        # Clear existing
+        if self.collection.count() > 0:
+            existing = self.collection.get()
+            if existing["ids"]:
+                self.collection.delete(ids=existing["ids"])
+
+        ids = []
+        documents = []
+        metadatas = []
+
+        for tactic in TACTICS_LIBRARY:
+            ids.append(tactic["id"])
+            doc = (
+                f"{tactic['tactic']} "
+                f"{tactic['best_for']} "
+                f"{tactic['stage']} "
+                f"{tactic['framework']}"
+            )
+            documents.append(doc)
+            metadatas.append({
+                "id": tactic["id"],
+                "framework": tactic["framework"],
+                "stage": tactic["stage"],
+                "is_field_tested": "Field-tested" in tactic.get("framework", ""),
+                "tactic": tactic["tactic"][:500],  # ChromaDB metadata size limit
+                "best_for": tactic["best_for"][:500],
+            })
+
+        self.collection.add(ids=ids, documents=documents, metadatas=metadatas)
+        console.print(f"[dim]Indexed {len(ids)} tactics into ChromaDB[/dim]")
+
+    def query(self, query: str, max_results: int = 3) -> list[dict[str, str]]:
+        """Search tactics — semantic if ChromaDB available, keyword fallback otherwise."""
+        if self._chromadb_available:
+            return self._semantic_query(query, max_results)
+        return self._keyword_query(query, max_results)
+
+    def _semantic_query(self, query: str, max_results: int) -> list[dict[str, str]]:
+        """Semantic search with ChromaDB + field-tested relevance boost."""
+        fetch_n = min(max_results * 3, self.collection.count())
+
+        results = self.collection.query(
+            query_texts=[query],
+            n_results=fetch_n,
+            include=["metadatas", "distances"],
+        )
+
+        if not results["metadatas"] or not results["metadatas"][0]:
+            return []
+
+        scored = []
+        for meta, distance in zip(results["metadatas"][0], results["distances"][0]):
+            # Cosine distance: 0 = identical, 2 = opposite → similarity
+            similarity = 1 - (distance / 2)
+
+            if meta.get("is_field_tested"):
+                similarity *= 1.3
+
+            # Reconstruct full tactic from library (metadata may be truncated)
+            full_tactic = next((t for t in TACTICS_LIBRARY if t["id"] == meta["id"]), None)
+            if full_tactic:
+                scored.append((similarity, full_tactic))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [tactic for _, tactic in scored[:max_results]]
+
+    def _keyword_query(self, query: str, max_results: int) -> list[dict[str, str]]:
+        """Fallback keyword search."""
         query_terms = set(query.lower().split())
         scored = []
 
@@ -166,10 +270,14 @@ class KnowledgeBaseTool:
             )
             score = sum(1 for term in query_terms if term in searchable)
             if score > 0:
-                # Field-tested tactics get a 1.3x relevance boost
                 if tactic["id"] in _FIELD_TESTED_IDS:
                     score *= 1.3
                 scored.append((score, tactic))
 
         scored.sort(key=lambda x: x[0], reverse=True)
         return [t for _, t in scored[:max_results]]
+
+    def reindex(self):
+        """Force reindex all tactics."""
+        if self._chromadb_available:
+            self._index_tactics()
