@@ -78,11 +78,21 @@
     <div class="quote">"The hardest problem in enterprise AI isn't the model. It's the adoption."</div>
 
     <div class="headline-box">
-      <div class="number">1 week faster. 4 fewer interventions.</div>
-      <p style="margin-top:8px;">Under disruption conditions (competing tool + sponsor departure), the orchestrator with 26 field-tested tactics hit the adoption target with fewer moves. It didn't just know more — it wasted less. That's what domain expertise does: it's not about having more options, it's about knowing which options to skip.</p>
+      <div class="number">Disruption is the differentiator.</div>
+      <p style="margin-top:8px;">When nothing goes wrong, every strategy looks the same. Under heavy disruption (reorgs, sponsor departures, budget freezes), stable-condition runs cruise past the 70% adoption target while disrupted runs stall out at 33–62%. The green/red split below is the single most important finding: <strong>the orchestrator compensates for everything — until it can't.</strong></p>
     </div>
 
-    <h2>Three Demo Scenarios</h2>
+    <img src="screenshot_disruption_curves.png" alt="Adoption curves: stable runs (green) reach 70%+ while disrupted runs (red) stall at 33-62%" style="width:100%;border-radius:8px;border:1px solid var(--border);margin:12px 0;" />
+
+    <h2>Key Results (29 Runs)</h2>
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-value green">68%</div><div class="kpi-label">Stable Success Rate</div></div>
+      <div class="kpi"><div class="kpi-value red">50%</div><div class="kpi-label">Disrupted Success Rate</div></div>
+      <div class="kpi"><div class="kpi-value green">19</div><div class="kpi-label">Stable Runs (0-1 events)</div></div>
+      <div class="kpi"><div class="kpi-value red">10</div><div class="kpi-label">Disrupted Runs (4+ events)</div></div>
+    </div>
+
+    <h2>Demo Scenarios</h2>
     <table>
       <tr><th>Scenario</th><th>Profile</th><th>Outcome</th><th>Adoption</th><th>Duration</th><th>Interventions</th></tr>
       <tr><td>Success</td><td>Nova Tech (moderate sponsor, medium maturity)</td><td><span class="badge badge-green">SUCCESS</span></td><td id="ov-success-adopt"></td><td id="ov-success-weeks"></td><td id="ov-success-ivs"></td></tr>
@@ -178,6 +188,10 @@
     <h3>Adoption Curves: Success vs Failure</h3>
     <p style="color:var(--dim);margin-bottom:8px;">Left: Nova Tech reaches 73% adoption in 13 weeks with a steady climb. Right: Meridian Healthcare grinds flat for 20 weeks under hostile conditions — weak sponsor, low maturity, sponsor departure at week 3, budget freeze at week 6 — and falls 0.4% short of the 60% target.</p>
     <img src="screenshot_adoption_curves.png" alt="Success vs Failure adoption curves" style="width:100%;border-radius:8px;border:1px solid var(--border);margin:12px 0;" />
+
+    <h3>Disruption Impact: Stable vs Heavy-Event Runs</h3>
+    <p style="color:var(--dim);margin-bottom:8px;">19 stable runs (green, 0–1 events) vs 10 disrupted runs (red, 4+ events) across Nova Tech, Acme Financial, and Meridian Healthcare. Stable runs succeed 68% of the time; disrupted runs drop to 50%. The worst disrupted outcomes (Meridian under 5 events: 33–41% adoption) show how organizational chaos — reorgs, sponsor departures, budget freezes — can overwhelm even a well-tuned orchestrator.</p>
+    <img src="screenshot_disruption_curves.png" alt="Disruption impact: stable vs heavy-event adoption curves" style="width:100%;border-radius:8px;border:1px solid var(--border);margin:12px 0;" />
 
     <h3>Knowledge Base Disruption Comparison</h3>
     <p style="color:var(--dim);margin-bottom:8px;">Same scenario (competing tool week 5, sponsor departure week 10), two knowledge bases. The field-tested KB (green) reaches the 70% target one week faster with four fewer interventions than the generic KB (gray). The red dotted lines mark when disruptions hit.</p>

@@ -153,15 +153,19 @@ def main():
     exp_dir = Path("data/experiments/sponsorship_demo/20260314_120000")
     exp_dir.mkdir(parents=True, exist_ok=True)
 
+    random.seed(77)  # Deterministic demo data
     results = []
     for sponsorship in ["weak", "moderate", "strong"]:
         for maturity in ["low", "medium", "high"]:
             for seed in [42, 123]:
-                # Higher sponsorship + maturity = better outcomes
-                s_bonus = {"weak": 0.0, "moderate": 0.15, "strong": 0.30}[sponsorship]
-                m_bonus = {"low": 0.0, "medium": 0.10, "high": 0.20}[maturity]
-                base = 0.25 + s_bonus + m_bonus + random.uniform(-0.08, 0.08)
-                adoption = min(0.95, max(0.10, base))
+                # Wider spread: weak+low bottoms out, strong+high soars
+                s_bonus = {"weak": 0.0, "moderate": 0.18, "strong": 0.38}[sponsorship]
+                m_bonus = {"low": 0.0, "medium": 0.12, "high": 0.25}[maturity]
+                noise = random.uniform(-0.06, 0.06)
+                # Interaction effect: weak sponsorship + low maturity is especially bad
+                interaction_penalty = 0.08 if sponsorship == "weak" and maturity == "low" else 0.0
+                base = 0.18 + s_bonus + m_bonus + noise - interaction_penalty
+                adoption = min(0.95, max(0.08, base))
                 outcome = "success" if adoption >= 0.70 else "failure_timeout"
 
                 results.append({
@@ -173,15 +177,15 @@ def main():
                     "seed": seed,
                     "outcome": outcome,
                     "final_adoption_pct": round(adoption, 3),
-                    "weeks_elapsed": 24 if outcome != "success" else random.randint(12, 22),
+                    "weeks_elapsed": 24 if outcome != "success" else random.randint(10, 20),
                     "total_interventions": random.randint(20, 45),
                     "events_encountered": random.randint(1, 5),
                     "replans_triggered": random.randint(0, 3),
                     "persona_final_sentiments": {
-                        "skeptical_ic": round(0.3 + s_bonus * 0.5 + random.uniform(-0.1, 0.1), 3),
-                        "enthusiastic_champion": round(0.6 + m_bonus * 0.3 + random.uniform(-0.1, 0.1), 3),
-                        "risk_averse_vp": round(0.3 + s_bonus * 0.8 + random.uniform(-0.1, 0.1), 3),
-                        "overwhelmed_it_admin": round(0.35 + m_bonus * 0.5 + random.uniform(-0.1, 0.1), 3),
+                        "skeptical_ic": round(max(0, 0.2 + s_bonus * 0.6 + random.uniform(-0.1, 0.1)), 3),
+                        "enthusiastic_champion": round(min(1, 0.5 + m_bonus * 0.4 + s_bonus * 0.3 + random.uniform(-0.1, 0.1)), 3),
+                        "risk_averse_vp": round(max(0, 0.2 + s_bonus * 0.9 + random.uniform(-0.1, 0.1)), 3),
+                        "overwhelmed_it_admin": round(max(0, 0.25 + m_bonus * 0.6 + random.uniform(-0.1, 0.1)), 3),
                     },
                     "duration_seconds": round(random.uniform(30, 120), 1),
                 })

@@ -181,11 +181,17 @@ class ExperimentRunner:
         log_subdir = self.output_dir / f"{label.replace(' | ', '__').replace('=', '_')}_seed{seed}"
         log_subdir.mkdir(parents=True, exist_ok=True)
 
+        # Determine forced events — support per-scenario disruption levels
+        forced_events = list(self.config.forced_events)
+        disruption_level = scenario.get("disruption_level")
+        if disruption_level is not None:
+            forced_events = DISRUPTION_LEVELS.get(disruption_level, [])
+
         controller = SimulationController(
             org_profile=profile,
             event_seed=seed,
             log_dir=str(log_subdir),
-            forced_events=self.config.forced_events,
+            forced_events=forced_events,
             quiet=True,
         )
 
@@ -391,6 +397,21 @@ class ExperimentRunner:
         console.print(f"\n[dim]Comparison report saved: {report_path}[/dim]")
 
 
+# ── Disruption Levels for Experiments ──────────────────────────
+
+DISRUPTION_LEVELS = {
+    "none": [],
+    "single": [
+        {"event_type": "sponsor_departure", "week": 8},
+    ],
+    "multi": [
+        {"event_type": "competing_tool", "week": 5},
+        {"event_type": "sponsor_departure", "week": 8},
+        {"event_type": "budget_freeze", "week": 12},
+    ],
+}
+
+
 # ── Pre-built Experiment Configs ───────────────────────────────
 
 from src.simulation.profiles import NOVA_TECH
@@ -432,8 +453,20 @@ SCALE_EFFECTS = ExperimentConfig(
     seeds=[42],
 )
 
+SPONSORSHIP_VS_DISRUPTION = ExperimentConfig(
+    name="sponsorship_vs_disruption",
+    description="When does sponsorship matter? Sponsorship × disruption severity.",
+    base_profile=NOVA_TECH.model_copy(update={"budget_weeks": 20}),
+    sweeps={
+        "executive_sponsorship": ["weak", "moderate", "strong"],
+        "disruption_level": ["none", "single", "multi"],
+    },
+    seeds=[42, 123],
+)
+
 EXPERIMENTS = {
     "sponsorship_sensitivity": SPONSORSHIP_SENSITIVITY,
     "disruption_resilience": DISRUPTION_RESILIENCE,
     "scale_effects": SCALE_EFFECTS,
+    "sponsorship_vs_disruption": SPONSORSHIP_VS_DISRUPTION,
 }

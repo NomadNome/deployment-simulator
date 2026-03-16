@@ -352,18 +352,191 @@ def page_hitl_audit():
     st.dataframe(display_data, use_container_width=True)
 
 
+# ── Helpers: Simulation Log Comparison ────────────────────────
+
+def _load_sim_meta(log_path: Path) -> dict | None:
+    """Load metadata for a simulation log, return None if unavailable."""
+    meta_path = log_path.parent / log_path.name.replace(".jsonl", "_meta.json")
+    if meta_path.exists():
+        try:
+            with open(meta_path) as f:
+                return json.load(f)
+        except Exception:
+            return None
+    return None
+
+
+def _extract_adoption_curve(log_path: Path) -> list[dict]:
+    """Extract weekly adoption from a simulation log."""
+    curve = []
+    try:
+        with open(log_path) as f:
+            for line in f:
+                if line.strip():
+                    turn = json.loads(line)
+                    curve.append({
+                        "week": turn["week"],
+                        "adoption": turn["adoption_metrics"]["overall_adoption_pct"],
+                    })
+    except Exception:
+        pass
+    return curve
+
+
+def _categorize_runs() -> tuple[list[dict], list[dict]]:
+    """Split simulation logs into disrupted (4+ events) vs stable (0-1 events) runs."""
+    disrupted = []
+    stable = []
+    if not SIM_LOG_DIR.exists():
+        return disrupted, stable
+    for log_path in SIM_LOG_DIR.glob("sim_*.jsonl"):
+        if "demo" in log_path.stem:
+            continue
+        meta = _load_sim_meta(log_path)
+        if not meta:
+            continue
+        events = meta.get("events_encountered", 0)
+        entry = {
+            "path": log_path,
+            "org": meta.get("org_name", "Unknown"),
+            "adoption": meta.get("final_adoption", 0),
+            "outcome": meta.get("outcome", "unknown"),
+            "weeks": meta.get("weeks_elapsed", 0),
+            "events": events,
+            "interventions": meta.get("total_interventions", 0),
+            "friction": meta.get("friction_events", 0),
+        }
+        if events >= 4:
+            disrupted.append(entry)
+        elif events <= 1:
+            stable.append(entry)
+    # Sort by adoption for consistent display
+    disrupted.sort(key=lambda x: x["adoption"])
+    stable.sort(key=lambda x: x["adoption"], reverse=True)
+    return disrupted, stable
+
+
+def render_kb_comparison():
+    """Render a side-by-side comparison of stable vs disrupted simulation runs."""
+    disrupted, stable = _categorize_runs()
+
+    if not disrupted and not stable:
+        st.info("No simulation logs with metadata found. Run simulations to populate this view.")
+        return
+
+    st.subheader("Disruption Impact Analysis")
+    st.caption(
+        "How do organizational disruptions affect adoption? "
+        "Comparing runs with heavy disruption (4+ events) against stable conditions (0-1 events)."
+    )
+
+    # Summary metrics
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**Stable Conditions** (0-1 events)")
+        if stable:
+            avg_adopt = sum(r["adoption"] for r in stable) / len(stable)
+            success_rate = sum(1 for r in stable if r["outcome"] == "success") / len(stable)
+            st.metric("Avg Adoption", f"{avg_adopt:.0%}")
+            st.metric("Success Rate", f"{success_rate:.0%}")
+            st.metric("Runs", len(stable))
+        else:
+            st.info("No stable runs found.")
+
+    with col2:
+        st.markdown("**Heavy Disruption** (4+ events)")
+        if disrupted:
+            avg_adopt = sum(r["adoption"] for r in disrupted) / len(disrupted)
+            success_rate = sum(1 for r in disrupted if r["outcome"] == "success") / len(disrupted)
+            st.metric("Avg Adoption", f"{avg_adopt:.0%}")
+            st.metric("Success Rate", f"{success_rate:.0%}")
+            st.metric("Runs", len(disrupted))
+        else:
+            st.info("No disrupted runs found.")
+
+    # Side-by-side adoption curves
+    if stable and disrupted:
+        st.subheader("Adoption Curves: Stable vs Disrupted")
+        fig = go.Figure()
+
+        # Plot up to 4 stable runs
+        for i, run in enumerate(stable[:4]):
+            curve = _extract_adoption_curve(run["path"])
+            if curve:
+                fig.add_trace(go.Scatter(
+                    x=[c["week"] for c in curve],
+                    y=[c["adoption"] for c in curve],
+                    mode="lines",
+                    name=f"{run['org']} ({run['events']}ev, {run['adoption']:.0%})",
+                    line=dict(color="#2ecc71", width=2, dash="solid" if i == 0 else "dot"),
+                    legendgroup="stable",
+                    legendgrouptitle_text="Stable",
+                    opacity=1.0 if i == 0 else 0.5,
+                ))
+
+        # Plot up to 4 disrupted runs
+        for i, run in enumerate(disrupted[:4]):
+            curve = _extract_adoption_curve(run["path"])
+            if curve:
+                fig.add_trace(go.Scatter(
+                    x=[c["week"] for c in curve],
+                    y=[c["adoption"] for c in curve],
+                    mode="lines",
+                    name=f"{run['org']} ({run['events']}ev, {run['adoption']:.0%})",
+                    line=dict(color="#e74c3c", width=2, dash="solid" if i == 0 else "dot"),
+                    legendgroup="disrupted",
+                    legendgrouptitle_text="Disrupted",
+                    opacity=1.0 if i == 0 else 0.5,
+                ))
+
+        fig.add_hline(y=0.70, line_dash="dash", line_color="gray",
+                      annotation_text="70% target", annotation_position="top left")
+        fig.update_layout(
+            yaxis=dict(tickformat=".0%", range=[0, 1], title="Adoption"),
+            xaxis_title="Week",
+            height=450,
+            margin=dict(l=40, r=20, t=30, b=40),
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    # Comparison table
+    if stable or disrupted:
+        st.subheader("Run-by-Run Comparison")
+        table_data = []
+        for run in stable + disrupted:
+            table_data.append({
+                "Organization": run["org"],
+                "Outcome": run["outcome"],
+                "Final Adoption": f"{run['adoption']:.0%}",
+                "Weeks": run["weeks"],
+                "Events": run["events"],
+                "Interventions": run["interventions"],
+                "Friction Events": run["friction"],
+                "Category": "Stable" if run["events"] <= 1 else "Disrupted",
+            })
+        st.dataframe(table_data, use_container_width=True)
+
+
 # ── Page: Experiment Results ──────────────────────────────────
 
 def page_experiment_results():
     st.header("Experiment Results")
 
     experiments = find_experiments()
-    if not experiments:
-        st.info("No experiment results found. Run an experiment first:\n\n"
-                "`python -m src.main experiment sponsorship_sensitivity`")
+
+    # Sidebar: experiment selector with "Disruption Comparison" as default
+    options = ["Disruption Impact Analysis"]
+    if experiments:
+        options += list(experiments.keys())
+
+    selected = st.sidebar.selectbox("View", options)
+
+    # Default view: disruption comparison from simulation logs
+    if selected == "Disruption Impact Analysis":
+        render_kb_comparison()
         return
 
-    selected = st.sidebar.selectbox("Experiment", list(experiments.keys()))
+    # Experiment-specific view
     data = load_experiment_results(experiments[selected])
 
     st.subheader(data.get("experiment", "Unknown"))
