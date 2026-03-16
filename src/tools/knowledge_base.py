@@ -7,6 +7,7 @@ from pathlib import Path
 from rich.console import Console
 
 from field_tested_tactics import FIELD_TESTED_TACTICS
+from research_backed_tactics import RESEARCH_BACKED_TACTICS
 
 console = Console()
 
@@ -141,11 +142,12 @@ TACTICS_LIBRARY: list[dict[str, str]] = [
     },
 ]
 
-# Append field-tested tactics
+# Append field-tested and research-backed tactics
 TACTICS_LIBRARY.extend(FIELD_TESTED_TACTICS)
+TACTICS_LIBRARY.extend(RESEARCH_BACKED_TACTICS)
 
-# IDs of field-tested entries for scoring boost
-_FIELD_TESTED_IDS = {t["id"] for t in FIELD_TESTED_TACTICS}
+# IDs of field-tested and research-backed entries for scoring boost
+_BOOSTED_IDS = {t["id"] for t in FIELD_TESTED_TACTICS} | {t["id"] for t in RESEARCH_BACKED_TACTICS}
 
 # ChromaDB paths
 CHROMA_PATH = Path("data/knowledge_base/chroma_db")
@@ -213,7 +215,7 @@ class KnowledgeBaseTool:
                 "id": tactic["id"],
                 "framework": tactic["framework"],
                 "stage": tactic["stage"],
-                "is_field_tested": "Field-tested" in tactic.get("framework", ""),
+                "is_field_tested": tactic["id"] in _BOOSTED_IDS,
                 "tactic": tactic["tactic"][:500],  # ChromaDB metadata size limit
                 "best_for": tactic["best_for"][:500],
             })
@@ -270,7 +272,7 @@ class KnowledgeBaseTool:
             )
             score = sum(1 for term in query_terms if term in searchable)
             if score > 0:
-                if tactic["id"] in _FIELD_TESTED_IDS:
+                if tactic["id"] in _BOOSTED_IDS:
                     score *= 1.3
                 scored.append((score, tactic))
 

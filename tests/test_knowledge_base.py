@@ -1,15 +1,16 @@
 """Tests for the knowledge base tool."""
 
-from src.tools.knowledge_base import KnowledgeBaseTool, TACTICS_LIBRARY, _FIELD_TESTED_IDS
+from src.tools.knowledge_base import KnowledgeBaseTool, TACTICS_LIBRARY, _BOOSTED_IDS
 
 
 def test_tactics_library_size():
-    """Should have 18 original + 26 field-tested = 44 tactics."""
-    assert len(TACTICS_LIBRARY) == 44
+    """Should have 18 original + 26 field-tested + 6 research-backed = 50 tactics."""
+    assert len(TACTICS_LIBRARY) == 50
 
 
-def test_field_tested_count():
-    assert len(_FIELD_TESTED_IDS) == 26
+def test_boosted_count():
+    """26 field-tested + 6 research-backed = 32 boosted entries."""
+    assert len(_BOOSTED_IDS) == 32
 
 
 def test_all_tactics_have_required_fields():
