@@ -1,6 +1,6 @@
 # Enterprise AI Deployment Simulator
 
-A multi-agent orchestration system that simulates enterprise AI rollouts. An **orchestrator agent** (Claude Sonnet) acts as a deployment strategist — generating and adapting rollout plans in real time — while **persona agents** (Claude Haiku) model realistic stakeholder behavior: skeptical engineers, enthusiastic champions, risk-averse executives, and overwhelmed IT admins.
+A decision-support simulator for AI rollout strategy under organizational disruption. An **orchestrator agent** (Claude Sonnet) acts as a deployment strategist — generating and adapting rollout plans in real time — while **persona agents** (Claude Haiku) model realistic stakeholder behavior: skeptical engineers, enthusiastic champions, risk-averse executives, and overwhelmed IT admins. Feed in an org profile, inject disruptions, and watch where adoption breaks.
 
 > **The hardest problem in enterprise AI isn't the model. It's the adoption.**
 
@@ -152,6 +152,20 @@ Field-tested tactics receive a 1.3x relevance boost in keyword search, so the or
 
 > *"I added 26 field-tested tactics from real enterprise deployment experience and reran the same disruption scenario. The orchestrator hit the adoption target one week faster with four fewer interventions. It didn't just know more — it wasted less. That's what domain expertise does: it's not about having more options, it's about knowing which options to skip."*
 
+## Sample Run Artifact
+
+A complete canonical run is committed at [`examples/canonical_run/`](examples/canonical_run/) so reviewers can inspect the full mechanics without an API key.
+
+**Nova Technologies — 72.6% adoption in 19 weeks (success)**
+
+| File | What It Contains |
+|------|-----------------|
+| [`simulation_log.jsonl`](examples/canonical_run/simulation_log.jsonl) | 19 turns of JSONL: orchestrator reasoning (ASSESS → DIAGNOSE → SELECT), interventions, persona responses, adoption metrics, events fired |
+| [`hitl_audit_trail.json`](examples/canonical_run/hitl_audit_trail.json) | 57 HITL routing decisions: 18 auto-execute, 39 human review, 0 escalated |
+| [`metadata.json`](examples/canonical_run/metadata.json) | Run summary: outcome, final adoption, weeks elapsed |
+
+This run includes 7 organizational disruptions (sponsor departure week 5, budget freeze weeks 7-8, reorg week 11, competing tool weeks 9 and 14, security incident week 17) and demonstrates the orchestrator's adaptive re-planning through each crisis.
+
 ## Dashboard
 
 Launch with `python -m src.main dashboard` (Streamlit + Plotly):
@@ -161,6 +175,24 @@ Launch with `python -m src.main dashboard` (Streamlit + Plotly):
 **HITL Audit Trail** — Routing distribution (auto/review/escalate), confidence scores over time with threshold lines, full decision log.
 
 **Experiment Results** — Adoption by configuration, sensitivity analysis tables, cross-variable heatmap (e.g., sponsorship x maturity), persona sentiment box plots, best/worst identification.
+
+## What Is Simulated vs. What Is Measured
+
+Not everything in this system comes from the same place. Understanding the boundary between hard-coded dynamics, LLM-generated behavior, and experimental observations is critical to evaluating the results.
+
+| Layer | What It Does | Source |
+|-------|-------------|--------|
+| **Org profiles** | Team size, maturity, sponsorship level, budget, adoption target | Hard-coded inputs (`src/simulation/profiles.py`) |
+| **Adoption metrics** | `overall_adoption_pct`, `login_rate`, `feature_usage_depth`, `nps_proxy` | Deterministic Python — computed from persona states each turn (`src/simulation/flywheel_metrics.py`) |
+| **Persona hidden state** | Sentiment, trust, cognitive load, grudge score, adoption likelihood | Deterministic update rules with stochastic noise (`src/agents/persona.py:update_state()`, `src/simulation/realism.py`) |
+| **Orchestrator strategy** | Which interventions to deploy, to whom, with what rationale | LLM-generated (Claude Sonnet via tool use) — the orchestrator sees metrics but NOT persona hidden state |
+| **Persona responses** | Natural-language reactions to interventions | LLM-generated (Claude Haiku) — conditioned on hidden state the orchestrator cannot see |
+| **Intervention effects** | How much an intervention moves sentiment/trust/adoption | Lookup table with fatigue multipliers, friction rolls, and grudge dampening (`src/agents/persona.py:EFFECT_TABLE`, `src/simulation/realism.py`) |
+| **Organizational events** | Reorgs, sponsor departures, budget freezes, competing tools | Stochastic (probability per week) or forced via experiment config (`src/simulation/events.py`) |
+| **HITL routing** | Auto-execute / human review / escalate decisions | Deterministic threshold on orchestrator confidence scores (`src/simulation/hitl_router.py`) |
+| **Experimental observations** | Final adoption, weeks to target, success/failure, sensitivity analysis | Measured outputs from batch runs — these are the results, not inputs |
+
+**Key implication:** The orchestrator and personas are the only LLM-powered components. Everything else — metrics, state updates, event firing, routing — is deterministic Python. This means simulation outcomes are reproducible given the same seed, and variation between runs comes from (a) LLM response stochasticity and (b) event randomness.
 
 ## How It Works
 
@@ -176,6 +208,20 @@ Each simulation runs a structured loop:
 8. **Termination Check** — Success (adoption threshold), failure (timeout), or continue
 
 The orchestrator **cannot see** persona sentiment scores directly. It must infer adoption trajectory from behavioral signals — just like a real deployment strategist.
+
+## Validated Failure Patterns
+
+The simulator intentionally reproduces five enterprise deployment failure patterns observed in real rollouts. Each pattern maps to specific mechanics in the codebase.
+
+| # | Failure Pattern | What Happens in the Real World | How the Simulator Produces It |
+|---|----------------|-------------------------------|------------------------------|
+| 1 | **Champion burnout** | Early adopters burn out evangelizing without air cover. They stop doing the work while still saying the right things. | Fatigue multiplier degrades repeated interventions to the same persona: `[1.0, 0.7, 0.4, 0.2]` (`realism.py:59`). Champion system prompt: *"If burnout is high (7+), your enthusiasm becomes performative"* (`persona.py:49`). |
+| 2 | **Silent VP** | The executive doesn't reject the initiative — they just go quiet. Meetings get rescheduled, decisions get deferred, budget discussions stall. | VP system prompt: *"If competing priorities are high (7+), you will deprioritize without warning. You just go quiet"* (`persona.py:66`). Grudge system tracks `weeks_since_contact` and penalizes non-contacted personas (`realism.py:193-198`). |
+| 3 | **IT bottleneck** | IT is the invisible anchor. They're not opposed — they just have 47 other things to do. The rollout stalls on provisioning, SSO, or security review. | Cognitive load > 0.7 dampens ALL intervention effects by 70% (`persona.py:189-191`). IT admin prompt: *"You become the silent bottleneck that nobody notices until the rollout stalls"* (`persona.py:83`). |
+| 4 | **Sponsor departure shock** | When the executive sponsor leaves, momentum collapses across all stakeholders. The replacement has their own priorities. | `SPONSOR_DEPARTURE` event fires -0.20 sentiment to VP, -0.12 to champion, plus grudge accumulation (`events.py:46-61`). This is the single largest negative sentiment modifier in the event catalog. |
+| 5 | **Competing tool anxiety** | A competitor demo at an internal tech talk creates doubt, especially among already-skeptical engineers. | `COMPETING_TOOL` event fires -0.10 to skeptical IC, -0.08 to VP (`events.py:29-44`). The IC's low base sentiment (starting ~0.30) means this can push them below the trust threshold where they stop sharing real concerns (`persona.py:33`). |
+
+These patterns emerge naturally from the interaction of deterministic state mechanics and LLM-generated persona behavior. They are not scripted outcomes — the orchestrator can recover from any of them with the right interventions at the right time. Whether it does is the experimental question.
 
 ## Adoption Flywheel Metrics
 
@@ -233,6 +279,11 @@ deployment-simulator/
 ├── data/
 │   ├── simulation_logs/           # JSONL logs + audit trails
 │   └── experiments/               # Batch results + comparison reports
+├── examples/
+│   └── canonical_run/              # Complete run artifact (inspectable without API key)
+│       ├── simulation_log.jsonl    # 19-turn JSONL log
+│       ├── hitl_audit_trail.json   # 57 HITL routing decisions
+│       └── metadata.json           # Run summary
 ├── pyproject.toml
 └── README.md
 ```
